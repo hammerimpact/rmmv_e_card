@@ -14,7 +14,7 @@ ECardGameManager.SetCount = function(count) {
 };
 
 ECardGameManager.Start = function() {
-    SceneManager.push(Scene_ECardGame);
+    SceneManager.push(Scene_ECardGameStart);
 };
 
 
@@ -32,32 +32,32 @@ ECardGameManager.GetText = function(_key)
 
 
 //-----------------------------------------------------------------------------
-// Scene_ECardGame
+// Scene_ECardGameStart
 //
-// The scene class of the ECardGame.
+// The scene class of the ECardGame Start
 
-function Scene_ECardGame() {
+function Scene_ECardGameStart() {
     this.initialize.apply(this, arguments);
 }
 
-Scene_ECardGame.prototype = Object.create(Scene_MenuBase.prototype);
-Scene_ECardGame.prototype.constructor = Scene_ECardGame;
+Scene_ECardGameStart.prototype = Object.create(Scene_MenuBase.prototype);
+Scene_ECardGameStart.prototype.constructor = Scene_ECardGameStart;
 
-Scene_ECardGame.prototype.initialize = function() {
+Scene_ECardGameStart.prototype.initialize = function() {
     Scene_MenuBase.prototype.initialize.call(this);
 };
 
-Scene_ECardGame.prototype.create = function() {
+Scene_ECardGameStart.prototype.create = function() {
     Scene_MenuBase.prototype.create.call(this);
     this.createStartUIGroup();
 };
 
-Scene_ECardGame.prototype.start = function() {
+Scene_ECardGameStart.prototype.start = function() {
     Scene_MenuBase.prototype.start.call(this);
 };
 
-Scene_ECardGame.prototype.createStartUIGroup = function() {
-    Scene_ECardGame.prototype.arrStartUIGroup = [];
+Scene_ECardGameStart.prototype.createStartUIGroup = function() {
+    Scene_ECardGameStart.prototype.arrStartUIGroup = [];
     function _pushStartUIGroup (winName, winObj)
     {
         this.arrStartUIGroup.push({ name : winName, window: winObj});
@@ -77,16 +77,13 @@ Scene_ECardGame.prototype.createStartUIGroup = function() {
     // Add to WindowLayer
     for (var i = 0; i < this.arrStartUIGroup.length; ++i)
         this.addWindow(this.arrStartUIGroup[i].window);
-
-    var _result = this.arrStartUIGroup.find(data => data.name === "startWindow");
-    var a = 10;
 };
 
-Scene_ECardGame.prototype.onClickStartWindowStart = function() {
+Scene_ECardGameStart.prototype.onClickStartWindowStart = function() {
 
 };
 
-Scene_ECardGame.prototype.onClickStartWindowExit = function() {
+Scene_ECardGameStart.prototype.onClickStartWindowExit = function() {
     this.popScene();
 };
 

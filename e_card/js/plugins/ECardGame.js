@@ -17,6 +17,20 @@ ECardGameManager.Start = function() {
     SceneManager.push(Scene_ECardGame);
 };
 
+
+// 텍스트
+ECardGameManager.arrText = [
+    { key : "StartTitle", value : "E 카드 게임"},
+    { key : "MenuStart", value : "시작"},
+    { key : "MenuExit", value : "종료"},
+];
+ECardGameManager.GetText = function(_key)
+{
+    var result = this.arrText.find(data => data.key === _key);
+    return result.value;
+};
+
+
 //-----------------------------------------------------------------------------
 // Scene_ECardGame
 //
@@ -57,14 +71,14 @@ Scene_ECardGame.prototype.createStartUIGroup = function() {
 
     // Start Help Window
     var _startHelpWindow = new Window_Help(1);
-    _startHelpWindow.setText("E 카드 게임");
+    _startHelpWindow.setText(ECardGameManager.GetText("StartTitle"));
     _pushStartUIGroup.call(this, "startHelp", _startHelpWindow);
 
     // Add to WindowLayer
     for (var i = 0; i < this.arrStartUIGroup.length; ++i)
         this.addWindow(this.arrStartUIGroup[i].window);
 
-    var _result = this.arrStartUIGroup.find(data => data.name == "startWindow");
+    var _result = this.arrStartUIGroup.find(data => data.name === "startWindow");
     var a = 10;
 };
 
@@ -103,6 +117,6 @@ Window_ECardGameStart.prototype.updatePlacement = function() {
 };
 
 Window_ECardGameStart.prototype.makeCommandList = function() {
-    this.addCommand("시작",   'start', false);
-    this.addCommand("종료",   'exit');
+    this.addCommand(ECardGameManager.GetText("MenuStart"),   'start', false);
+    this.addCommand(ECardGameManager.GetText("MenuExit"),   'exit');
 };

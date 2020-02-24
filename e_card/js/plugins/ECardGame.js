@@ -6,15 +6,125 @@
 function ECardGameManager() {
     throw new Error('This is a static class');
 }
+//===============================
+// Const
+//===============================
+ECardGameManager.EnumAssetType = {
+    VARIABLE : "variable",
+    GOLD : "gold",
+    ITEM : "item",
+};
 
-ECardGameManager.count       = 1;
-ECardGameManager.SetCount = function(count) {
-    this.count = count;
-    return this;
+//===============================
+// Input
+//===============================
+ECardGameManager.playerAssetType = ECardGameManager.EnumAssetType.VARIABLE;
+ECardGameManager.playerAssetParam = 0;
+ECardGameManager.SetPlayerAssetData  = function (playerAssetType, playerAssetParam)
+{
+    ECardGameManager.playerAssetType = playerAssetType;
+    ECardGameManager.playerAssetParam = playerAssetParam;
+    return ECardGameManager;
+};
+
+ECardGameManager.dealerAssetType = ECardGameManager.EnumAssetType.VARIABLE;
+ECardGameManager.dealerAssetParam = 0;
+ECardGameManager.SetDealerAssetData  = function (dealerAssetParam)
+{
+    ECardGameManager.dealerAssetParam = dealerAssetParam;
+    return ECardGameManager;
+};
+
+//===============================
+// Member Variables
+//===============================
+ECardGameManager.playerAssetAmount = 0;
+ECardGameManager.dealerAssetAmount = 0;
+
+ECardGameManager.InitData = function()
+{
+    ECardGameManager.playerAssetAmount = this._get_amount_value_(ECardGameManager.playerAssetType, ECardGameManager.playerAssetParam);
+    ECardGameManager.dealerAssetAmount = $gameVariables.value(ECardGameManager.playerAssetParam) || 0;
+};
+
+ECardGameManager._get_amount_value_ = function (type, param)
+{
+    var retVal = 0;
+
+    switch (type)
+    {
+        case ECardGameManager.EnumAssetType.VARIABLE:
+            retVal = $gameVariables.value(param);
+            break;
+
+        case ECardGameManager.EnumAssetType.GOLD:
+            retVal = $gameParty.gold();
+            break;
+
+        case ECardGameManager.EnumAssetType.ITEM:
+            if ($gameParty.hasItem(param, false))
+                retVal =  $gameParty.numItems(param);
+            break;
+    }
+
+    return retVal;
+};
+
+ECardGameManager.IsVerifyStart = function()
+{
+    if (ECardGameManager.playerAssetAmount <= 0)
+        return false;
+
+    if (ECardGameManager.dealerAssetAmount <= 0)
+        return false;
+
+    return true;
+};
+
+//===============================
+// Output
+//===============================
+ECardGameManager.SetResult = function()
+{
+    ECardGameManager._set_result_player_();
+    ECardGameManager._set_result_dealer_();
+};
+
+ECardGameManager._set_result_player_ = function()
+{
+    switch (ECardGameManager.playerAssetType)
+    {
+        case ECardGameManager.EnumAssetType.VARIABLE:
+            $gameVariables.setValue(ECardGameManager.playerAssetParam, ECardGameManager.playerAssetAmount);
+            break;
+
+        case ECardGameManager.EnumAssetType.GOLD:
+            $gameParty.gainGold(-$gameParty.maxGold); // Init to Zero
+            $gameParty.gainGold(ECardGameManager.playerAssetAmount);
+            break;
+
+        case ECardGameManager.EnumAssetType.ITEM:
+            $gameParty.gainItem(-$gameParty.maxItems(ECardGameManager.playerAssetParam), ECardGameManager.playerAssetAmount, false);
+            break;
+    }
+};
+
+ECardGameManager._set_result_dealer_ = function()
+{
+    $gameVariables.setValue(ECardGameManager.dealerAssetParam, ECardGameManager.dealerAssetAmount);
 };
 
 ECardGameManager.Start = function() {
+    // Refresh Data
+    ECardGameManager.InitData();
+
+    // Refresh UI
     SceneManager.push(Scene_ECardGameStart);
+};
+
+ECardGameManager.Exit = function() {
+    // Result Set
+    ECardGameManager.SetResult();
 };
 
 
@@ -24,15 +134,16 @@ ECardGameManager.arrText = [
     { key : "StartMenuStart", value : "시작"},
     { key : "StartMenuExit", value : "종료"},
     { key : "MainTitle", value : "E 카드 게임 본 화면"},
+    { key : "MainMenuStart", value : "카드"},
     { key : "MainMenuExit", value : "뒤로"},
 ];
 ECardGameManager.GetText = function(_key)
 {
-    var result = this.arrText.find(data => data.key === _key);
-    if (result === undefined)
+    var retVal = ECardGameManager.arrText.find(data => data.key === _key);
+    if (retVal === undefined)
         return "";
 
-    return result.value;
+    return retVal.value;
 };
 
 
@@ -126,8 +237,17 @@ Scene_ECardGame.prototype.createUIGroup = function() {
 
     // Main Select Window
     var _mainSelectWindow = new Window_ECardGameMain();
+    _mainSelectWindow.setHandler('start', this.onClickMainStart.bind(this));
     _mainSelectWindow.setHandler('exit', this.onClickMainExit.bind(this));
-    _pushUIGroup.call(this, "mainExit", _mainSelectWindow);
+    _pushUIGroup.call(this, "mainMenu", _mainSelectWindow);
+
+    // Main Player Card Window
+    var _mainPlayerCardWindow = new Window_ECardGameMainPlayerCardSelect(0, 80, 500);
+    for (var i = 0; i < _mainPlayerCardWindow.maxCols(); ++i)
+        _mainPlayerCardWindow.setHandler('card' + i, this.onClickSelectPlayerCard.bind(this, i));
+    _mainPlayerCardWindow.deselect();
+    _mainPlayerCardWindow.deactivate();
+    _pushUIGroup.call(this, "mainPlayerCard", _mainPlayerCardWindow);
 
     // Main Help Window
     var _mainHelpWindow = new Window_Help(1);
@@ -139,10 +259,47 @@ Scene_ECardGame.prototype.createUIGroup = function() {
         this.addWindow(this.arrUIGroup[i].window);
 };
 
+Scene_ECardGame.prototype.findUIInGroup = function(name) {
+    var retVal = this.arrUIGroup.find((data)=>data.name == name);
+    if (retVal === undefined)
+        return undefined;
+
+    return retVal.window;
+};
+
+Scene_ECardGame.prototype.onClickMainStart = function() {
+    var _deactiveTarget = this.findUIInGroup("mainMenu");
+    var _activeTarget = this.findUIInGroup("mainPlayerCard");
+
+    if (_deactiveTarget === undefined || _activeTarget === undefined)
+        return;
+
+    console.log("onClickMainStart");
+
+    _deactiveTarget.deactivate();
+
+    _activeTarget.activate();
+    _activeTarget.select(0);
+};
+
 Scene_ECardGame.prototype.onClickMainExit = function() {
     this.popScene();
 };
 
+Scene_ECardGame.prototype.onClickSelectPlayerCard = function(index) {
+    var _deactiveTarget = this.findUIInGroup("mainPlayerCard");
+    var _activeTarget = this.findUIInGroup("mainMenu");
+
+    if (_deactiveTarget === undefined || _activeTarget === undefined)
+        return;
+
+    console.log("onClickSelectPlayerCard" + index);
+
+    _deactiveTarget.deselect();
+    _deactiveTarget.deactivate();
+
+    _activeTarget.activate();
+};
 
 //-----------------------------------------------------------------------------
 // Window_ECardGameStart
@@ -202,5 +359,32 @@ Window_ECardGameMain.prototype.updatePlacement = function() {
 };
 
 Window_ECardGameMain.prototype.makeCommandList = function() {
+    this.addCommand(ECardGameManager.GetText("MainMenuStart"),   'start');
     this.addCommand(ECardGameManager.GetText("MainMenuExit"),   'exit');
+};
+
+//-----------------------------------------------------------------------------
+// Window_ItemCategory
+//
+// The window for selecting a category of items on the item and shop screens.
+
+function Window_ECardGameMainPlayerCardSelect() {
+    this.initialize.apply(this, arguments);
+}
+
+Window_ECardGameMainPlayerCardSelect.prototype = Object.create(Window_HorzCommand.prototype);
+Window_ECardGameMainPlayerCardSelect.prototype.constructor = Window_ECardGameMainPlayerCardSelect;
+
+Window_ECardGameMainPlayerCardSelect.prototype.initialize = function(x, y, width) {
+    this._windowWidth = width;
+    Window_HorzCommand.prototype.initialize.call(this, x, y);
+};
+
+Window_ECardGameMainPlayerCardSelect.prototype.maxCols = function() {
+    return 5;
+};
+
+Window_ECardGameMainPlayerCardSelect.prototype.makeCommandList = function() {
+    for (var i = 0; i < this.maxCols(); ++i)
+        this.addCommand(i.toString(), 'card' + i);
 };

@@ -10,9 +10,9 @@ function ECardGameManager() {
 // Const
 //===============================
 ECardGameManager.EnumAssetType = {
-    VARIABLE : "variable",
-    GOLD : "gold",
-    ITEM : "item",
+    VARIABLE : 'variable',
+    GOLD : 'gold',
+    ITEM : 'item',
 };
 
 //===============================
@@ -38,8 +38,8 @@ ECardGameManager.SetDealerAssetData  = function (dealerAssetParam)
 //===============================
 // Member Variables
 //===============================
-ECardGameManager.playerAssetAmount = 0;
-ECardGameManager.dealerAssetAmount = 0;
+ECardGameManager.playerAssetAmount = -1;
+ECardGameManager.dealerAssetAmount = -1;
 
 ECardGameManager.InitData = function()
 {
@@ -49,7 +49,7 @@ ECardGameManager.InitData = function()
 
 ECardGameManager._get_amount_value_ = function (type, param)
 {
-    var retVal = 0;
+    var retVal = -1;
 
     switch (type)
     {
@@ -72,10 +72,10 @@ ECardGameManager._get_amount_value_ = function (type, param)
 
 ECardGameManager.IsVerifyStart = function()
 {
-    if (ECardGameManager.playerAssetAmount <= 0)
+    if (ECardGameManager.playerAssetAmount < 0)
         return false;
 
-    if (ECardGameManager.dealerAssetAmount <= 0)
+    if (ECardGameManager.dealerAssetAmount < 0)
         return false;
 
     return true;
@@ -117,6 +117,13 @@ ECardGameManager._set_result_dealer_ = function()
 ECardGameManager.Start = function() {
     // Refresh Data
     ECardGameManager.InitData();
+
+    // Check Verify
+    if (ECardGameManager.IsVerifyStart() == false)
+    {
+        console.warn("ECardGameManager::Start : Not Verify Start");
+        return;
+    }
 
     // Refresh UI
     SceneManager.push(Scene_ECardGameStart);

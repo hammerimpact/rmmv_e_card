@@ -62,8 +62,11 @@ ECardGameManager._init_player_asset_amount_ = function()
 
         case ECardGameManager.EnumAssetType.ITEM:
             if (ECardGameManager.playerAssetParam >= 0 && ECardGameManager.playerAssetParam < $dataItems.length)
-                if ($gameParty.hasItem($dataItems[ECardGameManager.playerAssetParam], false))
-                    retVal =  $gameParty.numItems(ECardGameManager.playerAssetParam);
+            {
+                var item = $dataItems[ECardGameManager.playerAssetParam];
+                if ($gameParty.hasItem(item, false))
+                    retVal =  $gameParty.numItems(item);
+            }
             break;
     }
 

@@ -27,7 +27,6 @@ ECardGameManager.SetPlayerAssetData  = function (playerAssetType, playerAssetPar
     return ECardGameManager;
 };
 
-ECardGameManager.dealerAssetType = ECardGameManager.EnumAssetType.VARIABLE;
 ECardGameManager.dealerAssetParam = 0;
 ECardGameManager.SetDealerAssetData  = function (dealerAssetParam)
 {
@@ -38,23 +37,23 @@ ECardGameManager.SetDealerAssetData  = function (dealerAssetParam)
 //===============================
 // Member Variables
 //===============================
-ECardGameManager.playerAssetAmount = -1;
-ECardGameManager.dealerAssetAmount = -1;
+ECardGameManager.playerAssetAmount = -1;    // init value : -1 (because zero is valid value)
+ECardGameManager.dealerAssetAmount = -1;    // init value : -1 (because zero is valid value)
 
 ECardGameManager.InitData = function()
 {
-    ECardGameManager.playerAssetAmount = this._get_amount_value_(ECardGameManager.playerAssetType, ECardGameManager.playerAssetParam);
-    ECardGameManager.dealerAssetAmount = $gameVariables.value(ECardGameManager.playerAssetParam) || 0;
+    this._init_player_asset_amount_();
+    this._init_dealer_asset_amount_();
 };
 
-ECardGameManager._get_amount_value_ = function (type, param)
+ECardGameManager._init_player_asset_amount_ = function()
 {
     var retVal = -1;
 
-    switch (type)
+    switch (ECardGameManager.playerAssetType)
     {
         case ECardGameManager.EnumAssetType.VARIABLE:
-            retVal = $gameVariables.value(param);
+            retVal = $gameVariables.value(ECardGameManager.playerAssetParam);
             break;
 
         case ECardGameManager.EnumAssetType.GOLD:
@@ -62,12 +61,18 @@ ECardGameManager._get_amount_value_ = function (type, param)
             break;
 
         case ECardGameManager.EnumAssetType.ITEM:
-            if ($gameParty.hasItem(param, false))
-                retVal =  $gameParty.numItems(param);
+            if (ECardGameManager.playerAssetParam >= 0 && ECardGameManager.playerAssetParam < $dataItems.length)
+                if ($gameParty.hasItem($dataItems[ECardGameManager.playerAssetParam], false))
+                    retVal =  $gameParty.numItems(ECardGameManager.playerAssetParam);
             break;
     }
 
-    return retVal;
+    ECardGameManager.playerAssetAmount = retVal;
+};
+
+ECardGameManager._init_dealer_asset_amount_ = function()
+{
+    ECardGameManager.dealerAssetAmount = $gameVariables.value(ECardGameManager.dealerAssetParam) || -1;
 };
 
 ECardGameManager.IsVerifyStart = function()

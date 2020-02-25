@@ -7,12 +7,18 @@ function ECardGameManager() {
     throw new Error('This is a static class');
 }
 //===============================
-// Const
+// Enum
 //===============================
 ECardGameManager.EnumAssetType = {
     VARIABLE : 'variable',
     GOLD : 'gold',
     ITEM : 'item',
+};
+
+ECardGameManager.EnumFailedReasonStart = {
+    NONE : 0,
+    INVALID_PLAYER_ASSET_AMOUNT : 1,
+    INVALID_DEALER_ASSET_AMOUNT : 2,
 };
 
 //===============================
@@ -81,12 +87,12 @@ ECardGameManager._init_dealer_asset_amount_ = function()
 ECardGameManager.IsVerifyStart = function()
 {
     if (ECardGameManager.playerAssetAmount < 0)
-        return false;
+        return ECardGameManager.EnumFailedReasonStart.INVALID_PLAYER_ASSET_AMOUNT;
 
     if (ECardGameManager.dealerAssetAmount < 0)
-        return false;
+        return ECardGameManager.EnumFailedReasonStart.INVALID_DEALER_ASSET_AMOUNT;
 
-    return true;
+    return ECardGameManager.EnumFailedReasonStart.NONE;
 };
 
 //===============================
@@ -123,13 +129,14 @@ ECardGameManager._set_result_dealer_ = function()
 };
 
 ECardGameManager.Start = function() {
-    // Refresh Data
+    // Init, Refresh Data
     ECardGameManager.InitData();
 
     // Check Verify
-    if (ECardGameManager.IsVerifyStart() == false)
+    var eFailedReason = ECardGameManager.IsVerifyStart();
+    if (eFailedReason != ECardGameManager.EnumFailedReasonStart.NONE)
     {
-        console.warn("ECardGameManager::Start : Not Verify Start");
+        console.warn("ECardGameManager::Start : Not Verify Start : " + eFailedReason);
         return;
     }
 

@@ -7,7 +7,7 @@ function ECardGameManager() {
     throw new Error('This is a static class');
 }
 //===============================
-// Enum
+// CONST, Enum
 //===============================
 ECardGameManager.EnumAssetType = {
     VARIABLE : 'variable',
@@ -19,8 +19,44 @@ ECardGameManager.EnumFailedReasonStart = {
     NONE : 0,
     INVALID_PLAYER_ASSET_AMOUNT : 1,
     INVALID_DEALER_ASSET_AMOUNT : 2,
+    INVALID_MAX_HAND_COUNT : 3,
+    INVALID_SPECIAL_CARD_COUNT : 4,
+    INVALID_ROUND_COUNT_IN_ONE_GAME : 5,
 };
 
+ECardGameManager.EnumStepType = {
+    NONE                : 'none',
+    READY_GAME          : 'ready_game',
+    READY_ROUND         : 'ready_round',
+    BETTING             : 'betting',
+    DRAW                : 'draw',
+    SELECT_CARD         : 'select_card',
+    BATTLE              : 'battle',
+    RESULT_ROUND        : 'result_round',
+    SELECT_CONTINUE     : 'select_continue',
+};
+
+ECardGameManager.EnumCardType = {
+    NONE                    : -1,
+    SLAVE                   : 0,
+    CITIZEN                 : 1,
+    EMPEROR                 : 2,
+};
+//===============================
+// DATA
+//===============================
+ECardGameManager.CardData =
+{
+    // SLAVE CITIZEN EMPEROR
+    // 0 : lose / 1 : draw / 2 : win
+
+    // SLAVE
+    1 :  [1, 0, 2],
+    // CITIZEN
+    2 :  [2, 1, 0],
+    // EMPEROR
+    3 :  [0, 2, 1],
+};
 //===============================
 // Input
 //===============================
@@ -40,21 +76,62 @@ ECardGameManager.SetDealerAssetData  = function (dealerAssetParam)
     return ECardGameManager;
 };
 
+// About Rule
+
+// PlayerEmperorRoundFlag : if (round % 2 == PLAYER_EMPEROR_ROUND_FLAG) ==> player is emperor, dealer is slave
+ECardGameManager.PlayerEmperorRoundFlag = 1;
+ECardGameManager.SetPlayerEmperorRoundFlag = function(value) { ECardGameManager.PlayerEmperorRoundFlag = value; return ECardGameManager;}
+
+// MaxHandCount : max count of player/dealer hand
+ECardGameManager.MaxHandCount = 5;
+ECardGameManager.SetMaxHandCount = function(value) { ECardGameManager.MaxHandCount = value; return ECardGameManager;}
+
+// SpecialCardCount : special card (emperor/slave) count in hand.
+ECardGameManager.SpecialCardCount = 1;
+ECardGameManager.SetSpecialCardCount = function(value) { ECardGameManager.SpecialCardCount = value; return ECardGameManager;}
+
+// ROUND_COUNT_IN_ONE_GAME : round count in 1 game.
+ECardGameManager.RoundCountInGame = 3;
+ECardGameManager.SetRoundCountInGame = function(value) { ECardGameManager.RoundCountInGame = value; return ECardGameManager;}
+
+// Set Default Rule Setting
+ECardGameManager.SetDefaultRule = function()
+{
+    ECardGameManager.PlayerEmperorRoundFlag = 1;
+    ECardGameManager.MaxHandCount = 5;
+    ECardGameManager.SpecialCardCount = 1;
+    ECardGameManager.RoundCountInGame = 3;
+};
+
 //===============================
 // Member Variables
 //===============================
-ECardGameManager.playerAssetAmount = -1;    // init value : -1 (because zero is valid value)
-ECardGameManager.dealerAssetAmount = -1;    // init value : -1 (because zero is valid value)
+// Asset Amount
+ECardGameManager.playerAssetAmount = 0;
+ECardGameManager.dealerAssetAmount = 0;
+
+ECardGameManager.step = null;
+
+ECardGameManager.gameCount = 0;
+ECardGameManager.roundCount = 0;
+ECardGameManager.turnCount = 0;
+
+ECardGameManager.roundBettingAssetAmount = 0;
+ECardGameManager.playerHands = [];
+ECardGameManager.dealerHands = [];
+ECardGameManager.playerSelectCard = ECardGameManager.EnumCardType.NONE;
+ECardGameManager.dealerSelectCard = ECardGameManager.EnumCardType.NONE;
 
 ECardGameManager.InitData = function()
 {
-    this._init_player_asset_amount_();
-    this._init_dealer_asset_amount_();
+    ECardGameManager._init_player_asset_amount_();
+    ECardGameManager._init_dealer_asset_amount_();
+    ECardGameManager._init_playing_data_();
 };
 
 ECardGameManager._init_player_asset_amount_ = function()
 {
-    var retVal = -1;
+    var retVal = 0;
 
     switch (ECardGameManager.playerAssetType)
     {
@@ -84,19 +161,49 @@ ECardGameManager._init_dealer_asset_amount_ = function()
     ECardGameManager.dealerAssetAmount = $gameVariables.value(ECardGameManager.dealerAssetParam) || -1;
 };
 
+ECardGameManager._init_playing_data_ = function()
+{
+    ECardGameManager.step = null;
+
+    ECardGameManager.gameCount = 0;
+    ECardGameManager.roundCount = 0;
+    ECardGameManager.turnCount = 0;
+
+    ECardGameManager.roundBettingAssetAmount = 0;
+    ECardGameManager.playerHands = [];
+    ECardGameManager.dealerHands = [];
+    ECardGameManager.playerSelectCard = ECardGameManager.EnumCardType.NONE;
+    ECardGameManager.dealerSelectCard = ECardGameManager.EnumCardType.NONE;
+};
+
 ECardGameManager.IsVerifyStart = function()
 {
-    if (ECardGameManager.playerAssetAmount < 0)
+    if (ECardGameManager.playerAssetAmount <= 0)
         return ECardGameManager.EnumFailedReasonStart.INVALID_PLAYER_ASSET_AMOUNT;
 
-    if (ECardGameManager.dealerAssetAmount < 0)
+    if (ECardGameManager.dealerAssetAmount <= 0)
         return ECardGameManager.EnumFailedReasonStart.INVALID_DEALER_ASSET_AMOUNT;
+
+    // Check Const Verify
+    if (ECardGameManager.MaxHandCount <= 1)
+        return ECardGameManager.EnumFailedReasonStart.INVALID_MAX_HAND_COUNT;
+
+    if (ECardGameManager.SpecialCardCount <= 0)
+        return ECardGameManager.EnumFailedReasonStart.INVALID_SPECIAL_CARD_COUNT;
+
+    if (ECardGameManager.RoundCountInGame <= 0)
+        return ECardGameManager.EnumFailedReasonStart.INVALID_ROUND_COUNT_IN_ONE_GAME;
 
     return ECardGameManager.EnumFailedReasonStart.NONE;
 };
 
+ECardGameManager.IsPlayerEmperorGame = function()
+{
+    return (ECardGameManager.gameCount % 2 ==ECardGameManager.PlayerEmperorRoundFlag);
+};
+
 //===============================
-// Output
+// SetResult
 //===============================
 ECardGameManager.SetResult = function()
 {
@@ -128,7 +235,407 @@ ECardGameManager._set_result_dealer_ = function()
     $gameVariables.setValue(ECardGameManager.dealerAssetParam, ECardGameManager.dealerAssetAmount);
 };
 
+//===============================
+// Manage Game
+//===============================
+ECardGameManager.StartGame = function()
+{
+    // Change Step
+    ECardGameManager.step = ECardGameManager.CreateGameStep(ECardGameManager.EnumStepType.READY_GAME);
+    ECardGameManager.UpdateGame();
+};
+
+ECardGameManager.UpdateGame = function()
+{
+    ECardGameManager.step.Exec();
+
+    if (ECardGameManager.step.CheckCondition())
+    {
+        var eNextType = ECardGameManager.step.Next();
+        if (eNextType != ECardGameManager.EnumStepType.NONE)
+        {
+            // Change Step
+            ECardGameManager.step = ECardGameManager.CreateGameStep(eNextType);
+            ECardGameManager.UpdateGame();
+        }
+    }
+};
+
+ECardGameManager.SetBettingAssetAmount = function(assetValue)
+{
+    if (assetValue <= 0 || assetValue > ECardGameManager.playerAssetAmount || assetValue > ECardGameManager.dealerAssetAmount)
+        return;
+
+    ECardGameManager.roundBettingAssetAmount = assetValue;
+
+    ECardGameManager.UpdateGame();
+};
+//===============================
+// Step class
+//===============================
+ECardGameManager.CreateGameStep = function(eStepType)
+{
+    var retVal = new ECardGameStep();
+    retVal.TYPE = eStepType;
+    retVal.Init();
+    return retVal;
+};
+
+function ECardGameStep ()
+{
+
+};
+
+// Global Member Variables
+ECardGameStep.prototype.TYPE = ECardGameManager.EnumStepType.NONE;
+ECardGameStep.prototype.isInit = false;
+
+ECardGameStep.prototype.Init = function()
+{
+    if (this.isInit)
+        return;
+
+    this.isInit = true;
+
+    switch (this.TYPE)
+    {
+        case ECardGameManager.EnumStepType.READY_GAME:
+            this._init_READY_GAME_();
+            break;
+
+        case ECardGameManager.EnumStepType.READY_ROUND:
+            this._init_READY_ROUND_();
+            break;
+
+        case ECardGameManager.EnumStepType.BETTING:
+            this._init_BETTING_();
+            break;
+
+        case ECardGameManager.EnumStepType.DRAW:
+            this._init_DRAW_();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_CARD:
+            this._init_SELECT_CARD_();
+            break;
+
+        case ECardGameManager.EnumStepType.BATTLE:
+            this._init_BATTLE_();
+            break;
+
+        case ECardGameManager.EnumStepType.RESULT_ROUND:
+            this._init_RESULT_ROUND_();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_CONTINUE:
+            this._init_SELECT_CONTINUE_();
+            break;
+
+        default:
+            break;
+    }
+};
+
+ECardGameStep.prototype.Exec = function()
+{
+    switch (this.TYPE)
+    {
+        case ECardGameManager.EnumStepType.READY_GAME:
+            this._exec_READY_GAME_();
+            break;
+
+        case ECardGameManager.EnumStepType.READY_ROUND:
+            this._exec_READY_ROUND_();
+            break;
+
+        case ECardGameManager.EnumStepType.BETTING:
+            this._exec_BETTING_();
+            break;
+
+        case ECardGameManager.EnumStepType.DRAW:
+            this._exec_DRAW_();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_CARD:
+            this._exec_SELECT_CARD_();
+            break;
+
+        case ECardGameManager.EnumStepType.BATTLE:
+            this._exec_BATTLE_();
+            break;
+
+        case ECardGameManager.EnumStepType.RESULT_ROUND:
+            this._exec_RESULT_ROUND_();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_CONTINUE:
+            this._exec_SELECT_CONTINUE_();
+            break;
+
+        default:
+            break;
+    }
+};
+
+ECardGameStep.prototype.CheckCondition = function()
+{
+    var retVal = false;
+
+    switch (this.TYPE)
+    {
+        case ECardGameManager.EnumStepType.READY_GAME:
+            retVal = this._check_condition_READY_GAME_();
+            break;
+
+        case ECardGameManager.EnumStepType.READY_ROUND:
+            retVal = this._check_condition_READY_ROUND_();
+            break;
+
+        case ECardGameManager.EnumStepType.BETTING:
+            retVal = this._check_condition_BETTING_();
+            break;
+
+        case ECardGameManager.EnumStepType.DRAW:
+            retVal = this._check_condition_DRAW_();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_CARD:
+            retVal = this._check_condition_SELECT_CARD_();
+            break;
+
+        case ECardGameManager.EnumStepType.BATTLE:
+            retVal = this._check_condition_BATTLE_();
+            break;
+
+        case ECardGameManager.EnumStepType.RESULT_ROUND:
+            retVal = this._check_condition_RESULT_ROUND_();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_CONTINUE:
+            retVal = this._check_condition_SELECT_CONTINUE_();
+            break;
+
+        default:
+            break;
+    }
+
+    return retVal;
+};
+
+ECardGameStep.prototype.Next = function()
+{
+    var retVal = ECardGameManager.EnumStepType.NONE;
+
+    switch (this.TYPE)
+    {
+        case ECardGameManager.EnumStepType.READY_GAME:
+            retVal = this._next_READY_GAME_();
+            break;
+
+        case ECardGameManager.EnumStepType.READY_ROUND:
+            retVal = this._next_READY_ROUND_();
+            break;
+
+        case ECardGameManager.EnumStepType.BETTING:
+            retVal = this._next_BETTING_();
+            break;
+
+        case ECardGameManager.EnumStepType.DRAW:
+            retVal = this._next_DRAW_();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_CARD:
+            retVal = this._next_SELECT_CARD_();
+            break;
+
+        case ECardGameManager.EnumStepType.BATTLE:
+            retVal = this._next_BATTLE_();
+            break;
+
+        case ECardGameManager.EnumStepType.RESULT_ROUND:
+            retVal = this._next_RESULT_ROUND_();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_CONTINUE:
+            retVal = this._next_SELECT_CONTINUE_();
+            break;
+
+        default:
+            break;
+    }
+
+    return retVal;
+}
+
+// Step_READY_GAME
+ECardGameStep.prototype._init_READY_GAME_ = function()
+{
+    ECardGameManager.gameCount++;
+};
+ECardGameStep.prototype._exec_READY_GAME_ = function()
+{
+
+};
+ECardGameStep.prototype._check_condition_READY_GAME_ = function()
+{
+    return true;
+};
+ECardGameStep.prototype._next_READY_GAME_ = function()
+{
+    return ECardGameManager.EnumStepType.READY_ROUND;
+};
+
+// Step_READY_ROUND
+ECardGameStep.prototype._init_READY_ROUND_ = function()
+{
+    ECardGameManager.roundCount++;
+};
+ECardGameStep.prototype._exec_READY_ROUND_ = function()
+{
+
+};
+ECardGameStep.prototype._check_condition_READY_ROUND_ = function()
+{
+    return true;
+};
+ECardGameStep.prototype._next_READY_ROUND_ = function()
+{
+    return ECardGameManager.EnumStepType.BETTING;
+};
+
+// Step_BETTING
+ECardGameStep.prototype._init_BETTING_ = function()
+{
+    ECardGameManager.roundBettingAssetAmount = 0;
+};
+ECardGameStep.prototype._exec_BETTING_ = function()
+{
+
+};
+ECardGameStep.prototype._check_condition_BETTING_ = function()
+{
+    return ECardGameManager.roundBettingAssetAmount > 0;
+};
+ECardGameStep.prototype._next_BETTING_ = function()
+{
+    return ECardGameManager.EnumStepType.DRAW;
+};
+
+// Step_DRAW
+ECardGameStep.prototype._init_DRAW_ = function()
+{
+    ECardGameManager.playerHands = [];
+    ECardGameManager.dealerHands = [];
+    ECardGameManager.playerSelectCard = ECardGameManager.EnumCardType.NONE;
+    ECardGameManager.dealerSelectCard = ECardGameManager.EnumCardType.NONE;
+
+    // Draw Special Card
+    for (var i = 0; i < ECardGameManager.SpecialCardCount; ++i)
+        ECardGameManager.playerHands.push(ECardGameManager.IsPlayerEmperorGame() ? ECardGameManager.EnumCardType.EMPEROR : ECardGameManager.EnumCardType.SLAVE);
+
+    for (var i = 0; i < ECardGameManager.SpecialCardCount; ++i)
+        ECardGameManager.dealerHands.push(ECardGameManager.IsPlayerEmperorGame() ? ECardGameManager.EnumCardType.SLAVE : ECardGameManager.EnumCardType.EMPEROR);
+
+    // Draw Citizen Card
+    var CardCount = ECardGameManager.MaxHandCount - ECardGameManager.SpecialCardCount;
+    CardCount = Math.max(CardCount, 1); // If CardCount is zero, game is not valid.
+
+    for (var i = 0; i < CardCount; ++i)
+    {
+        ECardGameManager.playerHands.push(ECardGameManager.EnumCardType.CITIZEN);
+        ECardGameManager.dealerHands.push(ECardGameManager.EnumCardType.CITIZEN);
+    }
+};
+ECardGameStep.prototype._exec_DRAW_ = function()
+{
+
+};
+ECardGameStep.prototype._check_condition_DRAW_ = function()
+{
+    return true;
+};
+ECardGameStep.prototype._next_DRAW_ = function()
+{
+    return ECardGameManager.EnumStepType.SELECT_CARD;
+};
+
+// Step_SELECT_CARD
+ECardGameStep.prototype._init_SELECT_CARD_ = function()
+{
+
+};
+ECardGameStep.prototype._exec_SELECT_CARD_ = function()
+{
+
+};
+ECardGameStep.prototype._check_condition_SELECT_CARD_ = function()
+{
+
+};
+ECardGameStep.prototype._next_SELECT_CARD_ = function()
+{
+
+};
+
+// Step_BATTLE
+ECardGameStep.prototype._init_BATTLE_ = function()
+{
+
+};
+ECardGameStep.prototype._exec_BATTLE_ = function()
+{
+
+};
+ECardGameStep.prototype._check_condition_BATTLE_ = function()
+{
+
+};
+ECardGameStep.prototype._next_BATTLE_ = function()
+{
+
+};
+
+// Step_RESULT_ROUND
+ECardGameStep.prototype._init_RESULT_ROUND_ = function()
+{
+
+};
+ECardGameStep.prototype._exec_RESULT_ROUND_ = function()
+{
+
+};
+ECardGameStep.prototype._check_condition_RESULT_ROUND_ = function()
+{
+
+};
+ECardGameStep.prototype._next_RESULT_ROUND_ = function()
+{
+
+};
+
+// Step_SELECT_CONTINUE
+ECardGameStep.prototype._init_SELECT_CONTINUE_ = function()
+{
+
+};
+ECardGameStep.prototype._exec_SELECT_CONTINUE_ = function()
+{
+
+};
+ECardGameStep.prototype._check_condition_SELECT_CONTINUE_ = function()
+{
+
+};
+ECardGameStep.prototype._next_SELECT_CONTINUE_ = function()
+{
+
+};
+
+//===============================
+// Main Function
+//===============================
 ECardGameManager.Start = function() {
+
     // Init, Refresh Data
     ECardGameManager.InitData();
 
@@ -145,10 +652,13 @@ ECardGameManager.Start = function() {
 };
 
 ECardGameManager.Exit = function() {
-    // Result Set
+    // Set Result
     ECardGameManager.SetResult();
-};
 
+    // Init All Data
+    ECardGameManager.InitData();
+    ECardGameManager.SetDefaultRule();
+};
 
 // 텍스트
 ECardGameManager.arrText = [

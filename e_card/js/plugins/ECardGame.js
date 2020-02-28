@@ -258,7 +258,6 @@ ECardGameManager.UpdateGame = function()
             {
                 // Change Step
                 ECardGameManager.step = ECardGameManager.CreateGameStep(eNextType);
-                ECardGameManager.UpdateGame();
             }
         }
     }

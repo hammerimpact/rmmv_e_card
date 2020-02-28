@@ -31,6 +31,7 @@ ECardGameManager.EnumStepType = {
     BETTING             : 'betting',
     DRAW                : 'draw',
     SELECT_CARD         : 'select_card',
+    SELECT_DEALER_CARD  : 'select_dealer_card',
     BATTLE              : 'battle',
     RESULT_ROUND        : 'result_round',
     SELECT_CONTINUE     : 'select_continue',
@@ -265,11 +266,30 @@ ECardGameManager.UpdateGame = function()
 
 ECardGameManager.SetBettingAssetAmount = function(assetValue)
 {
+    if (ECardGameManager.step == null || ECardGameManager.step.TYPE != ECardGameManager.EnumStepType.BETTING)
+        return;
+
     if (assetValue <= 0 || assetValue > ECardGameManager.playerAssetAmount || assetValue > ECardGameManager.dealerAssetAmount)
         return;
 
     ECardGameManager.roundBettingAssetAmount = assetValue;
 };
+
+ECardGameManager.SelectPlayerCard = function(index)
+{
+    if (ECardGameManager.step == null || ECardGameManager.step.TYPE != ECardGameManager.EnumStepType.SELECT_CARD)
+        return;
+
+    if (index < 0 || index >= ECardGameManager.playerHands.length)
+        return;
+
+    // Set Player Card Select
+    ECardGameManager.playerSelectCard = ECardGameManager.playerHands[index];
+
+    // Remove from hand
+    ECardGameManager.playerHands.splice(index, 1);
+};
+
 //===============================
 // Step class
 //===============================
@@ -319,6 +339,10 @@ ECardGameStep.prototype.Init = function()
             this._init_SELECT_CARD_();
             break;
 
+        case ECardGameManager.EnumStepType.SELECT_DEALER_CARD:
+            this._init_SELECT_DEALER_CARD_();
+            break;
+
         case ECardGameManager.EnumStepType.BATTLE:
             this._init_BATTLE_();
             break;
@@ -358,6 +382,10 @@ ECardGameStep.prototype.Update = function()
 
         case ECardGameManager.EnumStepType.SELECT_CARD:
             this._update_SELECT_CARD_();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_DEALER_CARD:
+            this._update_SELECT_DEALER_CARD_();
             break;
 
         case ECardGameManager.EnumStepType.BATTLE:
@@ -403,6 +431,10 @@ ECardGameStep.prototype.CheckCondition = function()
             retVal = this._check_condition_SELECT_CARD_();
             break;
 
+        case ECardGameManager.EnumStepType.SELECT_DEALER_CARD:
+            retVal = this._check_condition_SELECT_DEALER_CARD_();
+            break;
+
         case ECardGameManager.EnumStepType.BATTLE:
             retVal = this._check_condition_BATTLE_();
             break;
@@ -446,6 +478,10 @@ ECardGameStep.prototype.Next = function()
 
         case ECardGameManager.EnumStepType.SELECT_CARD:
             retVal = this._next_SELECT_CARD_();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_DEALER_CARD:
+            retVal = this._next_SELECT_DEALER_CARD_();
             break;
 
         case ECardGameManager.EnumStepType.BATTLE:
@@ -562,7 +598,7 @@ ECardGameStep.prototype._next_DRAW_ = function()
 // Step_SELECT_CARD
 ECardGameStep.prototype._init_SELECT_CARD_ = function()
 {
-
+    ECardGameManager.playerSelectCard = ECardGameManager.EnumCardType.NONE;
 };
 ECardGameStep.prototype._update_SELECT_CARD_ = function()
 {
@@ -570,11 +606,30 @@ ECardGameStep.prototype._update_SELECT_CARD_ = function()
 };
 ECardGameStep.prototype._check_condition_SELECT_CARD_ = function()
 {
-
+    return (ECardGameManager.playerSelectCard != ECardGameManager.EnumCardType.NONE);
 };
 ECardGameStep.prototype._next_SELECT_CARD_ = function()
 {
+    return ECardGameManager.EnumStepType.SELECT_DEALER_CARD;
+};
 
+// Step_SELECT_DEALER_CARD
+ECardGameStep.prototype._init_SELECT_DEALER_CARD_ = function()
+{
+    ECardGameManager.dealerSelectCard = ECardGameManager.dealerHands[0];
+    ECardGameManager.dealerHands.splice(0, 1);
+};
+ECardGameStep.prototype._update_SELECT_DEALER_CARD_ = function()
+{
+
+};
+ECardGameStep.prototype._check_condition_SELECT_DEALER_CARD_ = function()
+{
+    return (ECardGameManager.dealerSelectCard != ECardGameManager.EnumCardType.NONE);
+};
+ECardGameStep.prototype._next_SELECT_DEALER_CARD_ = function()
+{
+    return ECardGameManager.EnumStepType.BATTLE;
 };
 
 // Step_BATTLE

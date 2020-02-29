@@ -46,7 +46,7 @@ ECardGameManager.EnumCardType = {
     EMPEROR                 : 2,
 };
 
-ECardGameManager.EnumUpdaterEvent = {
+ECardGameManager.EnumUpdaterEventID = {
     NONE             : 'updater_none',
     CHANGED_STEP     : 'updater_changed_step',
 };
@@ -131,6 +131,14 @@ ECardGameManager.dealerHands = [];
 ECardGameManager.playerSelectCard = ECardGameManager.EnumCardType.NONE;
 ECardGameManager.dealerSelectCard = ECardGameManager.EnumCardType.NONE;
 
+function ObserverEventData () {};
+ObserverEventData.prototype.id = '';
+ObserverEventData.prototype.observer = null;
+ObserverEventData.prototype.eventIDs = [];
+
+ECardGameManager.observerEvents = [];
+ECardGameManager.updaterEvents = [];
+
 ECardGameManager.InitData = function()
 {
     ECardGameManager._init_player_asset_amount_();
@@ -211,6 +219,77 @@ ECardGameManager.IsPlayerEmperorGame = function()
     return (ECardGameManager.gameCount % 2 ==ECardGameManager.PlayerEmperorRoundFlag);
 };
 
+ECardGameManager.AddObserverEvent = function(observerID, observerCallback, observeEventIDs)
+{
+    if (observeEventIDs.constructor != Array)
+        return;
+
+    var nIndex = -1;
+    for (var i = 0; i < ECardGameManager.observerEvents.length; ++i)
+    {
+        if (ECardGameManager.observerEvents[i].id != observerID)
+            continue;
+
+        break;
+    }
+
+    if (nIndex < 0)
+    {
+        var data = new ObserverEventData();
+        data.id = observerID;
+        data.observer = observerCallback;
+        data.eventIDs = [];
+        nIndex = ECardGameManager.observerEvents.push(data) - 1; // return value is new length.
+    }
+
+    if (nIndex < 0)
+        return; // push failed
+
+    for (var i = 0; i < observeEventIDs.length; ++i)
+        ECardGameManager.observerEvents[nIndex].eventIDs.push(observeEventIDs[i]);
+};
+
+ECardGameManager.RemoveObserverEvent = function(observerID)
+{
+    var nIndex = ECardGameManager.observerEvents.findIndex((data)=>data.id == observerID);
+    if (nIndex != -1)
+        ECardGameManager.observerEvents.splice(nIndex, 1);
+};
+
+ECardGameManager.AddUpdaterEventID = function(eventID)
+{
+    if (ECardGameManager.updaterEvents.find((id)=>id == eventID) == undefined)
+        ECardGameManager.updaterEvents.push(eventID);
+};
+
+ECardGameManager.observerUpdaterCache = [];
+ECardGameManager.ExecUpdaterEvent = function()
+{
+    // Clear Cache
+    ECardGameManager.observerUpdaterCache = [];
+
+    // Find Target observer
+    for (var i = 0; i < ECardGameManager.observerEvents.length; ++i)
+    {
+        for (var j = 0; j < ECardGameManager.observerEvents[i].eventIDs.length; ++j)
+        {
+            if (ECardGameManager.updaterEvents.find((eventID)=> eventID == ECardGameManager.observerEvents[i].eventIDs[j]) != undefined){
+                ECardGameManager.observerUpdaterCache.push(ECardGameManager.observerEvents[i].observer);
+                break;
+            }
+        }
+    }
+
+    // Exec
+    for (var i = 0; i < ECardGameManager.observerUpdaterCache.length; ++i)
+    {
+        if (ECardGameManager.observerUpdaterCache[i] != null)
+            ECardGameManager.observerUpdaterCache[i].call(ECardGameManager.observerEvents[i]);
+    }
+
+    // Clear UpdaterEvent
+    ECardGameManager.updaterEvents = [];
+};
 //===============================
 // SetResult
 //===============================
@@ -267,6 +346,9 @@ ECardGameManager.UpdateGame = function()
             {
                 // Change Step
                 ECardGameManager.step = ECardGameManager.CreateGameStep(eNextType);
+
+                // Add Updater Event
+                ECardGameManager.AddUpdaterEventID(ECardGameManager.EnumUpdaterEventID.CHANGED_STEP);
             }
         }
     }
@@ -446,7 +528,7 @@ ECardGameStep.prototype.CheckCondition = function()
     switch (this.TYPE)
     {
         case ECardGameManager.EnumStepType.INIT:
-            retval = this._check_condition_INIT_();
+            retVal = this._check_condition_INIT_();
             break;
 
         case ECardGameManager.EnumStepType.READY_GAME:
@@ -935,6 +1017,11 @@ Scene_ECardGame.prototype.create = function() {
 };
 
 Scene_ECardGame.prototype.start = function() {
+    ECardGameManager.AddObserverEvent('Scene_ECardGame', this.onUpdaterEvent.bind(this),
+    [
+        ECardGameManager.EnumUpdaterEventID.CHANGED_STEP
+    ]);
+
     Scene_MenuBase.prototype.start.call(this);
 };
 
@@ -980,7 +1067,20 @@ Scene_ECardGame.prototype.findUIInGroup = function(name) {
 Scene_ECardGame.prototype.update = function()
 {
     ECardGameManager.UpdateGame();
+    ECardGameManager.ExecUpdaterEvent();
+
     Scene_MenuBase.prototype.update.call(this);
+};
+
+Scene_ECardGame.prototype.terminate = function()
+{
+    ECardGameManager.RemoveObserverEvent('Scene_ECardGame');
+    Scene_Menu.prototype.terminate.call(this);
+};
+
+Scene_ECardGame.prototype.onUpdaterEvent = function(eventIDs)
+{
+    console.log("Scene_ECardGame.prototype.onUpdaterEvent");
 };
 
 Scene_ECardGame.prototype.onClickMainStart = function() {

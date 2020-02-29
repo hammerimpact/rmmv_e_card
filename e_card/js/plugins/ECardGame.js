@@ -26,6 +26,7 @@ ECardGameManager.EnumFailedReasonStart = {
 
 ECardGameManager.EnumStepType = {
     NONE                : 'none',
+    INIT                : 'init',
     READY_GAME          : 'ready_game',
     READY_ROUND         : 'ready_round',
     BETTING             : 'betting',
@@ -35,6 +36,7 @@ ECardGameManager.EnumStepType = {
     BATTLE              : 'battle',
     RESULT_ROUND        : 'result_round',
     SELECT_CONTINUE     : 'select_continue',
+    QUIT                : 'quit',
 };
 
 ECardGameManager.EnumCardType = {
@@ -43,6 +45,12 @@ ECardGameManager.EnumCardType = {
     CITIZEN                 : 1,
     EMPEROR                 : 2,
 };
+
+ECardGameManager.EnumUpdaterEvent = {
+    NONE             : 'updater_none',
+    CHANGED_STEP     : 'updater_changed_step',
+};
+
 //===============================
 // DATA
 //===============================
@@ -239,16 +247,16 @@ ECardGameManager._set_result_dealer_ = function()
 //===============================
 // Manage Game
 //===============================
-ECardGameManager.StartGame = function()
+ECardGameManager.SetStart = function()
 {
     // Change Step
-    ECardGameManager.step = ECardGameManager.CreateGameStep(ECardGameManager.EnumStepType.READY_GAME);
+    ECardGameManager.step = ECardGameManager.CreateGameStep(ECardGameManager.EnumStepType.INIT);
 };
 
 ECardGameManager.UpdateGame = function()
 {
     // Update Step
-    if (ECardGameManager.step != null )
+    if (ECardGameManager.step != null)
     {
         ECardGameManager.step.Update();
 
@@ -262,6 +270,16 @@ ECardGameManager.UpdateGame = function()
             }
         }
     }
+};
+
+ECardGameManager.SetQuit = function()
+{
+
+};
+
+ECardGameManager.SetContinue = function()
+{
+
 };
 
 ECardGameManager.SetBettingAssetAmount = function(assetValue)
@@ -319,6 +337,10 @@ ECardGameStep.prototype.Init = function()
 
     switch (this.TYPE)
     {
+        case ECardGameManager.EnumStepType.INIT:
+            this._init_INIT_();
+            break;
+
         case ECardGameManager.EnumStepType.READY_GAME:
             this._init_READY_GAME_();
             break;
@@ -355,6 +377,10 @@ ECardGameStep.prototype.Init = function()
             this._init_SELECT_CONTINUE_();
             break;
 
+        case ECardGameManager.EnumStepType.QUIT:
+            this._init_QUIT_();
+            break;
+
         default:
             break;
     }
@@ -364,6 +390,10 @@ ECardGameStep.prototype.Update = function()
 {
     switch (this.TYPE)
     {
+        case ECardGameManager.EnumStepType.INIT:
+            this._update_INIT_();
+            break;
+
         case ECardGameManager.EnumStepType.READY_GAME:
             this._update_READY_GAME_();
             break;
@@ -400,6 +430,10 @@ ECardGameStep.prototype.Update = function()
             this._update_SELECT_CONTINUE_();
             break;
 
+        case ECardGameManager.EnumStepType.QUIT:
+            this._update_QUIT_();
+            break;
+
         default:
             break;
     }
@@ -411,6 +445,10 @@ ECardGameStep.prototype.CheckCondition = function()
 
     switch (this.TYPE)
     {
+        case ECardGameManager.EnumStepType.INIT:
+            retval = this._check_condition_INIT_();
+            break;
+
         case ECardGameManager.EnumStepType.READY_GAME:
             retVal = this._check_condition_READY_GAME_();
             break;
@@ -447,6 +485,10 @@ ECardGameStep.prototype.CheckCondition = function()
             retVal = this._check_condition_SELECT_CONTINUE_();
             break;
 
+        case ECardGameManager.EnumStepType.QUIT:
+            retVal = this._check_condition_QUIT_();
+            break;
+
         default:
             break;
     }
@@ -460,6 +502,10 @@ ECardGameStep.prototype.Next = function()
 
     switch (this.TYPE)
     {
+        case ECardGameManager.EnumStepType.INIT:
+            retVal = this._next_INIT_();
+            break;
+
         case ECardGameManager.EnumStepType.READY_GAME:
             retVal = this._next_READY_GAME_();
             break;
@@ -496,12 +542,44 @@ ECardGameStep.prototype.Next = function()
             retVal = this._next_SELECT_CONTINUE_();
             break;
 
+        case ECardGameManager.EnumStepType.QUIT:
+            retVal = this._next_QUIT_();
+            break;
+
         default:
             break;
     }
 
     return retVal;
-}
+};
+
+// Step_INIT
+ECardGameStep.prototype._init_INIT_ = function()
+{
+    // init in-game varaibles
+
+    ECardGameManager.gameCount = 0;
+    ECardGameManager.roundCount = 0;
+    ECardGameManager.turnCount = 0;
+
+    ECardGameManager.roundBettingAssetAmount = 0;
+    ECardGameManager.playerHands = [];
+    ECardGameManager.dealerHands = [];
+    ECardGameManager.playerSelectCard = ECardGameManager.EnumCardType.NONE;
+    ECardGameManager.dealerSelectCard = ECardGameManager.EnumCardType.NONE;
+};
+ECardGameStep.prototype._update_INIT_ = function()
+{
+
+};
+ECardGameStep.prototype._check_condition_INIT_ = function()
+{
+    return true;
+};
+ECardGameStep.prototype._next_INIT_ = function()
+{
+    return ECardGameManager.EnumStepType.READY_GAME;
+};
 
 // Step_READY_GAME
 ECardGameStep.prototype._init_READY_GAME_ = function()
@@ -562,26 +640,27 @@ ECardGameStep.prototype._init_DRAW_ = function()
 {
     ECardGameManager.playerHands = [];
     ECardGameManager.dealerHands = [];
-    ECardGameManager.playerSelectCard = ECardGameManager.EnumCardType.NONE;
-    ECardGameManager.dealerSelectCard = ECardGameManager.EnumCardType.NONE;
 
     // Draw Special Card
     for (var i = 0; i < ECardGameManager.SpecialCardCount; ++i)
+    {
         ECardGameManager.playerHands.push(ECardGameManager.IsPlayerEmperorGame() ? ECardGameManager.EnumCardType.EMPEROR : ECardGameManager.EnumCardType.SLAVE);
-
-    for (var i = 0; i < ECardGameManager.SpecialCardCount; ++i)
         ECardGameManager.dealerHands.push(ECardGameManager.IsPlayerEmperorGame() ? ECardGameManager.EnumCardType.SLAVE : ECardGameManager.EnumCardType.EMPEROR);
+    }
 
     // Draw Citizen Card
     var CardCount = ECardGameManager.MaxHandCount - ECardGameManager.SpecialCardCount;
     CardCount = Math.max(CardCount, 1); // If CardCount is zero, game is not valid.
 
-    for (var i = 0; i < CardCount; ++i)
-    {
+    for (var i = 0; i < CardCount; ++i) {
         ECardGameManager.playerHands.push(ECardGameManager.EnumCardType.CITIZEN);
         ECardGameManager.dealerHands.push(ECardGameManager.EnumCardType.CITIZEN);
     }
+
+    // Shuffle dealerHands
+    ECardGameManager.dealerHands = ECardGameManager.Shuffle(ECardGameManager.dealerHands);
 };
+
 ECardGameStep.prototype._update_DRAW_ = function()
 {
 
@@ -686,6 +765,50 @@ ECardGameStep.prototype._next_SELECT_CONTINUE_ = function()
 
 };
 
+// Step_QUIT
+ECardGameStep.prototype._init_QUIT_ = function()
+{
+
+};
+ECardGameStep.prototype._update_QUIT_ = function()
+{
+
+};
+ECardGameStep.prototype._check_condition_QUIT_ = function()
+{
+    return true;
+};
+ECardGameStep.prototype._next_QUIT_ = function()
+{
+    return ECardGameManager.EnumStepType.NONE;
+};
+
+//===============================
+// Util Function
+//===============================
+ECardGameManager.Shuffle = function(array)
+{
+    if (array.constructor != Array)
+        return array;
+
+    if (array.length < 2)
+        return array; // if array size less than 2, card shuffle is useless.
+
+    // Knuth Shuffle Algorithm
+    var tmp = array[0];
+    for (var i = array.length; i >= 1; --i)
+    {
+        var sourIndex = i - 1;
+        var destIndex = Math.randomInt(i); // random 0 ~ (i - 1);
+
+        // Swap
+        tmp = array[destIndex];
+        array[destIndex] = array[sourIndex];
+        array[sourIndex] = tmp;
+    }
+
+    return array;
+};
 //===============================
 // Main Function
 //===============================

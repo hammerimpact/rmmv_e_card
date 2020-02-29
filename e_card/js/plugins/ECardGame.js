@@ -30,10 +30,11 @@ ECardGameManager.EnumStepType = {
     READY_GAME          : 'ready_game',
     READY_ROUND         : 'ready_round',
     BETTING             : 'betting',
-    DRAW                : 'draw',
+    READY_TURN          : 'ready_turn',
     SELECT_CARD         : 'select_card',
     SELECT_DEALER_CARD  : 'select_dealer_card',
     BATTLE              : 'battle',
+    RESULT_TURN         : 'result_turn',
     RESULT_ROUND        : 'result_round',
     SELECT_CONTINUE     : 'select_continue',
     QUIT                : 'quit',
@@ -46,6 +47,12 @@ ECardGameManager.EnumCardType = {
     EMPEROR                 : 2,
 };
 
+ECardGameManager.EnumResultType = {
+    LOSE                    : 0,
+    DRAW                    : 1,
+    WIN                     : 2,
+};
+
 ECardGameManager.EnumUpdaterEventID = {
     NONE             : 'updater_none',
     CHANGED_STEP     : 'updater_changed_step',
@@ -55,17 +62,17 @@ ECardGameManager.EnumUpdaterEventID = {
 // DATA
 //===============================
 ECardGameManager.CardData =
-{
+[
     // SLAVE CITIZEN EMPEROR
     // 0 : lose / 1 : draw / 2 : win
 
     // SLAVE
-    1 :  [1, 0, 2],
+    { key : 0 , data : [ECardGameManager.EnumResultType.DRAW,   ECardGameManager.EnumResultType.LOSE,   ECardGameManager.EnumResultType.WIN ]  },
     // CITIZEN
-    2 :  [2, 1, 0],
+    { key : 1 , data : [ECardGameManager.EnumResultType.WIN,    ECardGameManager.EnumResultType.DRAW,   ECardGameManager.EnumResultType.LOSE ] },
     // EMPEROR
-    3 :  [0, 2, 1],
-};
+    { key : 2 , data : [ECardGameManager.EnumResultType.LOSE,   ECardGameManager.EnumResultType.WIN,    ECardGameManager.EnumResultType.DRAW ] },
+];
 //===============================
 // Input
 //===============================
@@ -120,10 +127,12 @@ ECardGameManager.playerAssetAmount = 0;
 ECardGameManager.dealerAssetAmount = 0;
 
 ECardGameManager.step = null;
+ECardGameManager.prev_step_type = ECardGameManager.EnumStepType.NONE;
 
 ECardGameManager.gameCount = 0;
 ECardGameManager.roundCount = 0;
 ECardGameManager.turnCount = 0;
+ECardGameManager.turnBattleResult = ECardGameManager.EnumResultType.LOSE;
 
 ECardGameManager.roundBettingAssetAmount = 0;
 ECardGameManager.playerHands = [];
@@ -181,10 +190,12 @@ ECardGameManager._init_dealer_asset_amount_ = function()
 ECardGameManager._init_playing_data_ = function()
 {
     ECardGameManager.step = null;
+    ECardGameManager.prev_step_type = ECardGameManager.EnumStepType.NONE;
 
     ECardGameManager.gameCount = 0;
     ECardGameManager.roundCount = 0;
     ECardGameManager.turnCount = 0;
+    ECardGameManager.turnBattleResult = ECardGameManager.EnumResultType.LOSE;
 
     ECardGameManager.roundBettingAssetAmount = 0;
     ECardGameManager.playerHands = [];
@@ -339,11 +350,14 @@ ECardGameManager.UpdateGame = function()
     {
         ECardGameManager.step.Update();
 
-        if (ECardGameManager.step.CheckCondition())
+        if (ECardGameManager.step.isConfirmToContinue)
         {
             var eNextType = ECardGameManager.step.Next();
             if (eNextType != ECardGameManager.EnumStepType.NONE)
             {
+                // Save Prev Step Type
+                ECardGameManager.prev_step_type = ECardGameManager.step.TYPE;
+
                 // Change Step
                 ECardGameManager.step = ECardGameManager.CreateGameStep(eNextType);
 
@@ -354,6 +368,12 @@ ECardGameManager.UpdateGame = function()
     }
 };
 
+ECardGameManager.SetConfirmTurnResult = function()
+{
+    if (ECardGameManager.step == null || ECardGameManager.step.TYPE != ECardGameManager.EnumStepType.RESULT_ROUND)
+        return;
+};
+
 ECardGameManager.SetQuit = function()
 {
 
@@ -361,7 +381,8 @@ ECardGameManager.SetQuit = function()
 
 ECardGameManager.SetContinue = function()
 {
-
+    if (ECardGameManager.step == null || ECardGameManager.step.TYPE != ECardGameManager.EnumStepType.SELECT_CONTINUE)
+        return;
 };
 
 ECardGameManager.SetBettingAssetAmount = function(assetValue)
@@ -397,6 +418,7 @@ ECardGameManager.CreateGameStep = function(eStepType)
 {
     var retVal = new ECardGameStep();
     retVal.TYPE = eStepType;
+    retVal.isConfirmToContinue = false;
     retVal.Init();
     return retVal;
 };
@@ -409,6 +431,7 @@ function ECardGameStep ()
 // Global Member Variables
 ECardGameStep.prototype.TYPE = ECardGameManager.EnumStepType.NONE;
 ECardGameStep.prototype.isInit = false;
+ECardGameStep.prototype.isConfirmToContinue = false;
 
 ECardGameStep.prototype.Init = function()
 {
@@ -435,8 +458,8 @@ ECardGameStep.prototype.Init = function()
             this._init_BETTING_();
             break;
 
-        case ECardGameManager.EnumStepType.DRAW:
-            this._init_DRAW_();
+        case ECardGameManager.EnumStepType.READY_TURN:
+            this._init_READY_TURN_();
             break;
 
         case ECardGameManager.EnumStepType.SELECT_CARD:
@@ -449,6 +472,10 @@ ECardGameStep.prototype.Init = function()
 
         case ECardGameManager.EnumStepType.BATTLE:
             this._init_BATTLE_();
+            break;
+
+        case ECardGameManager.EnumStepType.RESULT_TURN:
+            this._init_RESULT_TURN_();
             break;
 
         case ECardGameManager.EnumStepType.RESULT_ROUND:
@@ -488,8 +515,8 @@ ECardGameStep.prototype.Update = function()
             this._update_BETTING_();
             break;
 
-        case ECardGameManager.EnumStepType.DRAW:
-            this._update_DRAW_();
+        case ECardGameManager.EnumStepType.READY_TURN:
+            this._update_READY_TURN_();
             break;
 
         case ECardGameManager.EnumStepType.SELECT_CARD:
@@ -502,6 +529,10 @@ ECardGameStep.prototype.Update = function()
 
         case ECardGameManager.EnumStepType.BATTLE:
             this._update_BATTLE_();
+            break;
+
+        case ECardGameManager.EnumStepType.RESULT_TURN:
+            this._update_RESULT_TURN_();
             break;
 
         case ECardGameManager.EnumStepType.RESULT_ROUND:
@@ -519,63 +550,6 @@ ECardGameStep.prototype.Update = function()
         default:
             break;
     }
-};
-
-ECardGameStep.prototype.CheckCondition = function()
-{
-    var retVal = false;
-
-    switch (this.TYPE)
-    {
-        case ECardGameManager.EnumStepType.INIT:
-            retVal = this._check_condition_INIT_();
-            break;
-
-        case ECardGameManager.EnumStepType.READY_GAME:
-            retVal = this._check_condition_READY_GAME_();
-            break;
-
-        case ECardGameManager.EnumStepType.READY_ROUND:
-            retVal = this._check_condition_READY_ROUND_();
-            break;
-
-        case ECardGameManager.EnumStepType.BETTING:
-            retVal = this._check_condition_BETTING_();
-            break;
-
-        case ECardGameManager.EnumStepType.DRAW:
-            retVal = this._check_condition_DRAW_();
-            break;
-
-        case ECardGameManager.EnumStepType.SELECT_CARD:
-            retVal = this._check_condition_SELECT_CARD_();
-            break;
-
-        case ECardGameManager.EnumStepType.SELECT_DEALER_CARD:
-            retVal = this._check_condition_SELECT_DEALER_CARD_();
-            break;
-
-        case ECardGameManager.EnumStepType.BATTLE:
-            retVal = this._check_condition_BATTLE_();
-            break;
-
-        case ECardGameManager.EnumStepType.RESULT_ROUND:
-            retVal = this._check_condition_RESULT_ROUND_();
-            break;
-
-        case ECardGameManager.EnumStepType.SELECT_CONTINUE:
-            retVal = this._check_condition_SELECT_CONTINUE_();
-            break;
-
-        case ECardGameManager.EnumStepType.QUIT:
-            retVal = this._check_condition_QUIT_();
-            break;
-
-        default:
-            break;
-    }
-
-    return retVal;
 };
 
 ECardGameStep.prototype.Next = function()
@@ -600,8 +574,8 @@ ECardGameStep.prototype.Next = function()
             retVal = this._next_BETTING_();
             break;
 
-        case ECardGameManager.EnumStepType.DRAW:
-            retVal = this._next_DRAW_();
+        case ECardGameManager.EnumStepType.READY_TURN:
+            retVal = this._next_READY_TURN_();
             break;
 
         case ECardGameManager.EnumStepType.SELECT_CARD:
@@ -614,6 +588,10 @@ ECardGameStep.prototype.Next = function()
 
         case ECardGameManager.EnumStepType.BATTLE:
             retVal = this._next_BATTLE_();
+            break;
+
+        case ECardGameManager.EnumStepType.RESULT_TURN:
+            retVal = this._next_RESULT_TURN_();
             break;
 
         case ECardGameManager.EnumStepType.RESULT_ROUND:
@@ -643,20 +621,19 @@ ECardGameStep.prototype._init_INIT_ = function()
     ECardGameManager.gameCount = 0;
     ECardGameManager.roundCount = 0;
     ECardGameManager.turnCount = 0;
+    ECardGameManager.turnBattleResult = ECardGameManager.EnumResultType.LOSE;
 
     ECardGameManager.roundBettingAssetAmount = 0;
     ECardGameManager.playerHands = [];
     ECardGameManager.dealerHands = [];
     ECardGameManager.playerSelectCard = ECardGameManager.EnumCardType.NONE;
     ECardGameManager.dealerSelectCard = ECardGameManager.EnumCardType.NONE;
+
+    this.isConfirmToContinue = true;
 };
 ECardGameStep.prototype._update_INIT_ = function()
 {
 
-};
-ECardGameStep.prototype._check_condition_INIT_ = function()
-{
-    return true;
 };
 ECardGameStep.prototype._next_INIT_ = function()
 {
@@ -667,14 +644,12 @@ ECardGameStep.prototype._next_INIT_ = function()
 ECardGameStep.prototype._init_READY_GAME_ = function()
 {
     ECardGameManager.gameCount++;
+
+    this.isConfirmToContinue = true;
 };
 ECardGameStep.prototype._update_READY_GAME_ = function()
 {
 
-};
-ECardGameStep.prototype._check_condition_READY_GAME_ = function()
-{
-    return true;
 };
 ECardGameStep.prototype._next_READY_GAME_ = function()
 {
@@ -685,41 +660,8 @@ ECardGameStep.prototype._next_READY_GAME_ = function()
 ECardGameStep.prototype._init_READY_ROUND_ = function()
 {
     ECardGameManager.roundCount++;
-};
-ECardGameStep.prototype._update_READY_ROUND_ = function()
-{
+    ECardGameManager.turnCount  = 0;
 
-};
-ECardGameStep.prototype._check_condition_READY_ROUND_ = function()
-{
-    return true;
-};
-ECardGameStep.prototype._next_READY_ROUND_ = function()
-{
-    return ECardGameManager.EnumStepType.BETTING;
-};
-
-// Step_BETTING
-ECardGameStep.prototype._init_BETTING_ = function()
-{
-    ECardGameManager.roundBettingAssetAmount = 0;
-};
-ECardGameStep.prototype._update_BETTING_ = function()
-{
-
-};
-ECardGameStep.prototype._check_condition_BETTING_ = function()
-{
-    return ECardGameManager.roundBettingAssetAmount > 0;
-};
-ECardGameStep.prototype._next_BETTING_ = function()
-{
-    return ECardGameManager.EnumStepType.DRAW;
-};
-
-// Step_DRAW
-ECardGameStep.prototype._init_DRAW_ = function()
-{
     ECardGameManager.playerHands = [];
     ECardGameManager.dealerHands = [];
 
@@ -741,17 +683,46 @@ ECardGameStep.prototype._init_DRAW_ = function()
 
     // Shuffle dealerHands
     ECardGameManager.dealerHands = ECardGameManager.Shuffle(ECardGameManager.dealerHands);
-};
 
-ECardGameStep.prototype._update_DRAW_ = function()
+    this.isConfirmToContinue = true;
+};
+ECardGameStep.prototype._update_READY_ROUND_ = function()
 {
 
 };
-ECardGameStep.prototype._check_condition_DRAW_ = function()
+ECardGameStep.prototype._next_READY_ROUND_ = function()
 {
-    return true;
+    return ECardGameManager.EnumStepType.BETTING;
 };
-ECardGameStep.prototype._next_DRAW_ = function()
+
+// Step_BETTING
+ECardGameStep.prototype._init_BETTING_ = function()
+{
+    ECardGameManager.roundBettingAssetAmount = 0;
+};
+ECardGameStep.prototype._update_BETTING_ = function()
+{
+    this.isConfirmToContinue = ECardGameManager.roundBettingAssetAmount > 0;
+};
+ECardGameStep.prototype._next_BETTING_ = function()
+{
+    return ECardGameManager.EnumStepType.READY_TURN;
+};
+
+// Step_READY_TURN
+ECardGameStep.prototype._init_READY_TURN_ = function()
+{
+    ECardGameManager.turnCount++;
+    ECardGameManager.turnBattleResult = ECardGameManager.EnumResultType.LOSE;
+
+    this.isConfirmToContinue = true;
+};
+
+ECardGameStep.prototype._update_READY_TURN_ = function()
+{
+
+};
+ECardGameStep.prototype._next_READY_TURN_ = function()
 {
     return ECardGameManager.EnumStepType.SELECT_CARD;
 };
@@ -763,11 +734,8 @@ ECardGameStep.prototype._init_SELECT_CARD_ = function()
 };
 ECardGameStep.prototype._update_SELECT_CARD_ = function()
 {
-
-};
-ECardGameStep.prototype._check_condition_SELECT_CARD_ = function()
-{
-    return (ECardGameManager.playerSelectCard != ECardGameManager.EnumCardType.NONE);
+    this.isConfirmToContinue = (ECardGameManager.playerSelectCard != ECardGameManager.EnumCardType.NONE) &&
+    (ECardGameManager.CardData.find((data)=>data.key == ECardGameManager.playerSelectCard) != undefined);
 };
 ECardGameStep.prototype._next_SELECT_CARD_ = function()
 {
@@ -782,11 +750,8 @@ ECardGameStep.prototype._init_SELECT_DEALER_CARD_ = function()
 };
 ECardGameStep.prototype._update_SELECT_DEALER_CARD_ = function()
 {
-
-};
-ECardGameStep.prototype._check_condition_SELECT_DEALER_CARD_ = function()
-{
-    return (ECardGameManager.dealerSelectCard != ECardGameManager.EnumCardType.NONE);
+    this.isConfirmToContinue = (ECardGameManager.dealerSelectCard != ECardGameManager.EnumCardType.NONE) &&
+    (ECardGameManager.CardData.find((data)=>data.key == ECardGameManager.dealerSelectCard) != undefined);;
 };
 ECardGameStep.prototype._next_SELECT_DEALER_CARD_ = function()
 {
@@ -796,37 +761,72 @@ ECardGameStep.prototype._next_SELECT_DEALER_CARD_ = function()
 // Step_BATTLE
 ECardGameStep.prototype._init_BATTLE_ = function()
 {
+    // battle result
+    ECardGameManager.turnBattleResult = ECardGameManager.EnumResultType.LOSE;
 
+    var dataPlayerCard = ECardGameManager.CardData.find((data)=>data.key == ECardGameManager.playerSelectCard);
+    var dataDealerCard = ECardGameManager.CardData.find((data)=>data.key == ECardGameManager.dealerSelectCard);
+
+    if (dataPlayerCard == undefined || dataDealerCard == undefined)
+        return;
+
+    ECardGameManager.turnBattleResult = dataPlayerCard.data[ECardGameManager.dealerSelectCard];
+
+    this.isConfirmToContinue = true;
 };
 ECardGameStep.prototype._update_BATTLE_ = function()
 {
 
 };
-ECardGameStep.prototype._check_condition_BATTLE_ = function()
-{
-
-};
 ECardGameStep.prototype._next_BATTLE_ = function()
 {
+    return ECardGameManager.EnumStepType.RESULT_TURN;
+};
 
+// Step_RESULT_TURN
+ECardGameStep.prototype._data_RESULT_TURN = { waitTime : 0 };
+ECardGameStep.prototype._init_RESULT_TURN_ = function()
+{
+    this._data_RESULT_TURN = { waitTime : 180 }; // 180 / 60frame = 3 sec
+
+    console.log("_init_RESULT_TURN_");
+};
+ECardGameStep.prototype._update_RESULT_TURN_ = function()
+{
+    this._data_RESULT_TURN.waitTime = this._data_RESULT_TURN.waitTime - 1;
+    this.isConfirmToContinue = (this._data_RESULT_TURN.waitTime < 0);
+
+    if (this.isConfirmToContinue)
+        console.log("_update_RESULT_TURN_ confirmed");
+};
+ECardGameStep.prototype._next_RESULT_TURN_ = function()
+{
+    // Check (go to RESULT_ROUND) or (back to READY_TURN)
+    if (ECardGameManager.turnBattleResult != ECardGameManager.EnumResultType.DRAW)
+        return ECardGameManager.EnumStepType.RESULT_ROUND;
+    else
+        return ECardGameManager.EnumStepType.READY_TURN;
 };
 
 // Step_RESULT_ROUND
+ECardGameStep.prototype._data_RESULT_ROUND = { waitTime : 0 };
 ECardGameStep.prototype._init_RESULT_ROUND_ = function()
 {
+    this._data_RESULT_ROUND = { waitTime : 180 }; // 180 / 60frame = 3 sec
 
+    console.log("_init_RESULT_ROUND_");
 };
 ECardGameStep.prototype._update_RESULT_ROUND_ = function()
 {
+    this._data_RESULT_ROUND.waitTime = this._data_RESULT_ROUND.waitTime - 1;
+    this.isConfirmToContinue = (this._data_RESULT_ROUND.waitTime < 0);
 
-};
-ECardGameStep.prototype._check_condition_RESULT_ROUND_ = function()
-{
-
+    if (this.isConfirmToContinue)
+        console.log("_update_RESULT_ROUND_ confirmed");
 };
 ECardGameStep.prototype._next_RESULT_ROUND_ = function()
 {
-
+    return ECardGameManager.EnumStepType.SELECT_CONTINUE;
 };
 
 // Step_SELECT_CONTINUE
@@ -835,10 +835,6 @@ ECardGameStep.prototype._init_SELECT_CONTINUE_ = function()
 
 };
 ECardGameStep.prototype._update_SELECT_CONTINUE_ = function()
-{
-
-};
-ECardGameStep.prototype._check_condition_SELECT_CONTINUE_ = function()
 {
 
 };
@@ -855,10 +851,6 @@ ECardGameStep.prototype._init_QUIT_ = function()
 ECardGameStep.prototype._update_QUIT_ = function()
 {
 
-};
-ECardGameStep.prototype._check_condition_QUIT_ = function()
-{
-    return true;
 };
 ECardGameStep.prototype._next_QUIT_ = function()
 {

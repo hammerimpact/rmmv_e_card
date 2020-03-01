@@ -110,6 +110,10 @@ ECardGameManager.SetSpecialCardCount = function(value) { ECardGameManager.Specia
 ECardGameManager.RoundCountInGame = 3;
 ECardGameManager.SetRoundCountInGame = function(value) { ECardGameManager.RoundCountInGame = value; return ECardGameManager;}
 
+// SLAVE_WIN_BONUS_RATE : If win with slave card, gain asset amount is (betting amount * this rate)
+ECardGameManager.SlaveWinBonusRate = 5;
+ECardGameManager.SetSlaveWinBonusRate = function(value) { ECardGameManager.SlaveWinBonusRate = value; return ECardGameManager;}
+
 // Set Default Rule Setting
 ECardGameManager.SetDefaultRule = function()
 {
@@ -301,6 +305,28 @@ ECardGameManager.ExecUpdaterEvent = function()
     // Clear UpdaterEvent
     ECardGameManager.updaterEvents = [];
 };
+
+ECardGameManager.ConsoleDebugState = function()
+{
+    console.log("===================================");
+    console.log("playerAssetAmount : " + ECardGameManager.playerAssetAmount);
+    console.log("dealerAssetAmount : " + ECardGameManager.dealerAssetAmount);
+
+    console.log(ECardGameManager.step);
+    console.log(ECardGameManager.prev_step_type);
+
+    console.log("gameCount : " + ECardGameManager.gameCount);
+    console.log("roundCount : " + ECardGameManager.roundCount);
+    console.log("turnCount : " + ECardGameManager.turnCount);
+    console.log("turnBattleResult : " + ECardGameManager.turnBattleResult);
+
+    console.log("roundBettingAssetAmount : " + ECardGameManager.roundBettingAssetAmount);
+    console.log("playerHands : " + ECardGameManager.playerHands);
+    console.log("dealerHands : " + ECardGameManager.dealerHands);
+    console.log("playerSelectCard : " + ECardGameManager.playerSelectCard);
+    console.log("dealerSelectCard : " + ECardGameManager.dealerSelectCard);
+    console.log("===================================");
+};
 //===============================
 // SetResult
 //===============================
@@ -368,21 +394,12 @@ ECardGameManager.UpdateGame = function()
     }
 };
 
-ECardGameManager.SetConfirmTurnResult = function()
-{
-    if (ECardGameManager.step == null || ECardGameManager.step.TYPE != ECardGameManager.EnumStepType.RESULT_ROUND)
-        return;
-};
-
-ECardGameManager.SetQuit = function()
-{
-
-};
-
-ECardGameManager.SetContinue = function()
+ECardGameManager.SetContinue = function(isContinue)
 {
     if (ECardGameManager.step == null || ECardGameManager.step.TYPE != ECardGameManager.EnumStepType.SELECT_CONTINUE)
         return;
+
+    ECardGameManager.step.SetContinueData(isContinue);
 };
 
 ECardGameManager.SetBettingAssetAmount = function(assetValue)
@@ -644,6 +661,7 @@ ECardGameStep.prototype._next_INIT_ = function()
 ECardGameStep.prototype._init_READY_GAME_ = function()
 {
     ECardGameManager.gameCount++;
+    ECardGameManager.roundCount = 0;
 
     this.isConfirmToContinue = true;
 };
@@ -787,7 +805,7 @@ ECardGameStep.prototype._next_BATTLE_ = function()
 ECardGameStep.prototype._data_RESULT_TURN = { waitTime : 0 };
 ECardGameStep.prototype._init_RESULT_TURN_ = function()
 {
-    this._data_RESULT_TURN = { waitTime : 180 }; // 180 / 60frame = 3 sec
+    this._data_RESULT_TURN = { waitTime : 60 }; // 180 / 60frame = 3 sec
 
     console.log("_init_RESULT_TURN_");
 };
@@ -809,44 +827,106 @@ ECardGameStep.prototype._next_RESULT_TURN_ = function()
 };
 
 // Step_RESULT_ROUND
-ECardGameStep.prototype._data_RESULT_ROUND = { waitTime : 0 };
 ECardGameStep.prototype._init_RESULT_ROUND_ = function()
 {
-    this._data_RESULT_ROUND = { waitTime : 180 }; // 180 / 60frame = 3 sec
+    // Set Round Result
+    var gainAmount = ECardGameManager.roundBettingAssetAmount;
 
-    console.log("_init_RESULT_ROUND_");
+    switch (ECardGameManager.turnBattleResult)
+    {
+        case ECardGameManager.EnumResultType.WIN:
+            {
+                if (ECardGameManager.IsPlayerEmperorGame() == false)
+                    gainAmount *= ECardGameManager.SlaveWinBonusRate;
+
+                ECardGameManager.playerAssetAmount += gainAmount;
+                ECardGameManager.dealerAssetAmount -= gainAmount;
+            }
+            break;
+
+        case ECardGameManager.EnumResultType.LOSE:
+            ECardGameManager.playerAssetAmount -= gainAmount;
+            ECardGameManager.dealerAssetAmount += gainAmount;
+            break;
+
+        default:
+            break;
+    }
 };
 ECardGameStep.prototype._update_RESULT_ROUND_ = function()
 {
-    this._data_RESULT_ROUND.waitTime = this._data_RESULT_ROUND.waitTime - 1;
-    this.isConfirmToContinue = (this._data_RESULT_ROUND.waitTime < 0);
-
-    if (this.isConfirmToContinue)
-        console.log("_update_RESULT_ROUND_ confirmed");
+    this.isConfirmToContinue = true;
 };
 ECardGameStep.prototype._next_RESULT_ROUND_ = function()
 {
-    return ECardGameManager.EnumStepType.SELECT_CONTINUE;
+    if (ECardGameManager.playerAssetAmount <= 0)
+    {
+        console.log("_next_RESULT_ROUND_ : playerAssetAmount is zero. QUIT.");
+        return ECardGameManager.EnumStepType.QUIT;
+    }
+
+    if (ECardGameManager.roundCount >= ECardGameManager.RoundCountInGame)
+    {
+        // One Game is Over
+
+        if (ECardGameManager.gameCount % 2 == 0) // Each 2 Game is over, Check continue or not.
+        {
+            // Wait Continue;
+            return ECardGameManager.EnumStepType.SELECT_CONTINUE;
+        }
+        else
+        {
+            // Start Next Game
+            return ECardGameManager.EnumStepType.READY_GAME;
+        }
+    }
+    else
+    {
+        return ECardGameManager.EnumStepType.READY_ROUND;
+    }
 };
 
 // Step_SELECT_CONTINUE
+ECardGameStep.prototype._data_SELECT_CONTINUE = {
+    isContinueFlag : 0 // 0 : wait input, 1 : continue, -1 : quit
+};
+ECardGameStep.prototype.SetContinueData = function (isContinue) {
+    this._data_SELECT_CONTINUE.isContinueFlag = isContinue ? 1 : -1;
+};
 ECardGameStep.prototype._init_SELECT_CONTINUE_ = function()
 {
-
+    this._data_SELECT_CONTINUE.isContinueFlag = 0;
 };
 ECardGameStep.prototype._update_SELECT_CONTINUE_ = function()
 {
-
+    this.isConfirmToContinue = this._data_SELECT_CONTINUE.isContinueFlag != 0;
 };
 ECardGameStep.prototype._next_SELECT_CONTINUE_ = function()
 {
+    var retVal = ECardGameManager.EnumStepType.READY_ROUND;
 
+    switch (this._data_SELECT_CONTINUE.isContinueFlag)
+    {
+        case -1 :
+            retVal = ECardGameManager.EnumStepType.QUIT;
+            break;
+
+        case 1 :
+            // Start Next Game
+            retVal = ECardGameManager.EnumStepType.READY_GAME;
+            break;
+
+        default:
+            break;
+    }
+
+    return retVal;
 };
 
 // Step_QUIT
 ECardGameStep.prototype._init_QUIT_ = function()
 {
-
+    this.isConfirmToContinue = true;
 };
 ECardGameStep.prototype._update_QUIT_ = function()
 {
@@ -1072,7 +1152,7 @@ Scene_ECardGame.prototype.terminate = function()
 
 Scene_ECardGame.prototype.onUpdaterEvent = function(eventIDs)
 {
-    console.log("Scene_ECardGame.prototype.onUpdaterEvent");
+    console.log("Scene_ECardGame.prototype.onUpdaterEvent : current step = " + ECardGameManager.step.TYPE);
 };
 
 Scene_ECardGame.prototype.onClickMainStart = function() {
@@ -1091,6 +1171,7 @@ Scene_ECardGame.prototype.onClickMainStart = function() {
 };
 
 Scene_ECardGame.prototype.onClickMainExit = function() {
+    ECardGameManager.Exit();
     this.popScene();
 };
 

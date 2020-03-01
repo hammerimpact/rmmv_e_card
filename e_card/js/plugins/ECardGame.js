@@ -1054,6 +1054,16 @@ Scene_ECardGameStart.prototype.createStartUIGroup = function() {
     _startHelpWindow.setText(ECardGameManager.GetText("StartTitle"));
     _pushStartUIGroup.call(this, "startHelp", _startHelpWindow);
 
+    // Player Asset Window
+    var _playerAssetWindow = new Window_ECardGameText(0, 100, 300, 2);
+    _playerAssetWindow.setText("Player Asset\n" + ECardGameManager.playerAssetAmount);
+    _pushStartUIGroup.call(this, "playerAsset", _playerAssetWindow);
+
+    // Dealer Asset Window
+    var _dealerAssetWindow = new Window_ECardGameText(Graphics.width - 300, 100, 300, 2);
+    _dealerAssetWindow.setText("Dealer Asset\n" + ECardGameManager.dealerAssetAmount);
+    _pushStartUIGroup.call(this, "dealerAsset", _dealerAssetWindow);
+
     // Add to WindowLayer
     for (var i = 0; i < this.arrStartUIGroup.length; ++i)
         this.addWindow(this.arrStartUIGroup[i].window);
@@ -1105,9 +1115,16 @@ Scene_ECardGame.prototype.createUIGroup = function() {
     };
 
     // Main Select Window
+    var _bettingInputWindow = new Window_ECardGameBettingInput();
+    _bettingInputWindow.setHandler('ok', this.onClickBettingOK.bind(this));
+    _pushUIGroup.call(this, "bettingInput", _bettingInputWindow);
+
+    // Main Select Window
     var _mainSelectWindow = new Window_ECardGameMain();
     _mainSelectWindow.setHandler('start', this.onClickMainStart.bind(this));
     _mainSelectWindow.setHandler('exit', this.onClickMainExit.bind(this));
+    _mainSelectWindow.deselect();
+    _mainSelectWindow.deactivate();
     _pushUIGroup.call(this, "mainMenu", _mainSelectWindow);
 
     // Main Player Card Window
@@ -1153,6 +1170,10 @@ Scene_ECardGame.prototype.terminate = function()
 Scene_ECardGame.prototype.onUpdaterEvent = function(eventIDs)
 {
     console.log("Scene_ECardGame.prototype.onUpdaterEvent : current step = " + ECardGameManager.step.TYPE);
+};
+
+Scene_ECardGame.prototype.onClickBettingOK = function() {
+    console.log("Scene_ECardGame.prototype.onClickBettingOK");
 };
 
 Scene_ECardGame.prototype.onClickMainStart = function() {
@@ -1222,6 +1243,40 @@ Window_ECardGameStart.prototype.makeCommandList = function() {
 };
 
 //-----------------------------------------------------------------------------
+// Window_ECardGameText
+//
+// The window for displaying the description of the selected item.
+
+function Window_ECardGameText() {
+    this.initialize.apply(this, arguments);
+}
+
+Window_ECardGameText.prototype = Object.create(Window_Base.prototype);
+Window_ECardGameText.prototype.constructor = Window_ECardGameText;
+
+Window_ECardGameText.prototype.initialize = function(x, y, width, numLines) {
+    var height = this.fittingHeight(numLines || 2);
+    Window_Base.prototype.initialize.call(this, x, y, width, height);
+};
+
+Window_ECardGameText.prototype.setText = function(text) {
+    if (this._text !== text) {
+        this._text = text;
+        this.refresh();
+    }
+};
+
+Window_ECardGameText.prototype.clear = function() {
+    this.setText('');
+};
+
+Window_ECardGameText.prototype.refresh = function() {
+    this.contents.clear();
+    this.drawTextEx(this._text, this.textPadding(), 0);
+};
+
+
+//-----------------------------------------------------------------------------
 // Window_ECardGameMain
 //
 // The window for ECardGame Start Select.
@@ -1253,7 +1308,7 @@ Window_ECardGameMain.prototype.makeCommandList = function() {
 };
 
 //-----------------------------------------------------------------------------
-// Window_ItemCategory
+// Window_ECardGameMainPlayerCardSelect
 //
 // The window for selecting a category of items on the item and shop screens.
 
@@ -1269,6 +1324,10 @@ Window_ECardGameMainPlayerCardSelect.prototype.initialize = function(x, y, width
     Window_HorzCommand.prototype.initialize.call(this, x, y);
 };
 
+Window_ECardGameMainPlayerCardSelect.prototype.numVisibleRows = function() {
+    return 3;
+};
+
 Window_ECardGameMainPlayerCardSelect.prototype.maxCols = function() {
     return 5;
 };
@@ -1276,4 +1335,175 @@ Window_ECardGameMainPlayerCardSelect.prototype.maxCols = function() {
 Window_ECardGameMainPlayerCardSelect.prototype.makeCommandList = function() {
     for (var i = 0; i < this.maxCols(); ++i)
         this.addCommand(i.toString(), 'card' + i);
+};
+
+//-----------------------------------------------------------------------------
+// Window_ECardGameBettingInput
+//
+// The window for selecting a category of items on the item and shop screens.
+
+Window_ECardGameBettingInput.INPUT =
+    [ "7","8","9",
+      "4","5","6",
+      "1","2","3",
+      "정정","0","결정"];
+
+function Window_ECardGameBettingInput() {
+    this.initialize.apply(this, arguments);
+}
+
+Window_ECardGameBettingInput.prototype = Object.create(Window_Selectable.prototype);
+Window_ECardGameBettingInput.prototype.constructor = Window_ECardGameBettingInput;
+
+Window_ECardGameBettingInput.prototype.maxValue = 0;
+Window_ECardGameBettingInput.prototype.minValue = 0;
+Window_ECardGameBettingInput.prototype.inputValue = "";
+Window_ECardGameBettingInput.prototype.initialize = function(maxValue) {
+    this._windowWidth = this.fittingWidth(3);
+    this._windowHeight = this.fittingHeight(4);
+    this._index = 0;
+    this.maxValue = maxValue;
+    this.minValue = 1;
+    this.inputValue = "1";
+
+    var x = Graphics.width / 2 - this._windowWidth / 2;
+    var y = Graphics.height / 2 - this._windowHeight / 2;
+    Window_Selectable.prototype.initialize.call(this, x, y, this.windowWidth(), this.windowHeight());
+
+    this.refresh();
+    this.select(0);
+    this.updateCursor();
+    this.activate();
+};
+
+Window_ECardGameBettingInput.prototype.windowWidth = function() {
+    return this._windowWidth;
+};
+
+Window_ECardGameBettingInput.prototype.windowHeight = function() {
+    return this._windowHeight;
+};
+
+Window_ECardGameBettingInput.prototype.maxCols = function() {
+    return 3;
+};
+
+Window_ECardGameBettingInput.prototype.maxItems = function() {
+    return Window_ECardGameBettingInput.INPUT.length;
+};
+
+Window_ECardGameBettingInput.prototype.isCursorNumber = function()
+{
+    return !this.isCursorOK() && !this.isCursorRemove();
+};
+
+Window_ECardGameBettingInput.prototype.isCursorRemove = function()
+{
+    return this._index == 9;
+};
+
+Window_ECardGameBettingInput.prototype.isCursorOK = function()
+{
+    return this._index == 11;
+};
+
+Window_ECardGameBettingInput.prototype.fittingWidth = function(cols)
+{
+    return cols * this.lineWidth() + (cols - 1) * this.lineColSpacing() + this.standardPadding() * 2;
+};
+
+Window_ECardGameBettingInput.prototype.lineWidth = function()
+{
+    return 42;
+};
+
+Window_ECardGameBettingInput.prototype.lineColSpacing = function()
+{
+    return 3;
+};
+
+Window_ECardGameBettingInput.prototype.itemRect = function(index, isForCursor) {
+    return {
+        x: index % this.maxCols() * this.lineWidth() + (index % this.maxCols()) * this.lineColSpacing() + (isForCursor ? 0 : 3),
+        y: Math.floor(index / this.maxCols()) * this.lineHeight(),
+        width: this.lineWidth()  + (isForCursor ? 0 : -6),
+        height: this.lineHeight()
+    };
+};
+
+Window_ECardGameBettingInput.prototype.refresh = function() {
+    var table = Window_ECardGameBettingInput.INPUT;
+    this.contents.clear();
+    this.resetTextColor();
+    for (var i = 0; i < table.length; i++) {
+        var rect = this.itemRect(i, false);
+        this.drawText(table[i], rect.x, rect.y, rect.width, 'center');
+    }
+};
+
+Window_ECardGameBettingInput.prototype.updateCursor = function() {
+    var rect = this.itemRect(this._index, true);
+    this.setCursorRect(rect.x, rect.y, rect.width, rect.height);
+};
+
+
+Window_ECardGameBettingInput.prototype.isCursorMovable = function() {
+    return this.active;
+};
+
+Window_ECardGameBettingInput.prototype.processCursorMove = function() {
+    Window_Selectable.prototype.processCursorMove.call(this);
+    this.updateCursor();
+};
+
+Window_ECardGameBettingInput.prototype.getNextLineFirstIndex = function() { return this.maxCols(); }
+Window_ECardGameBettingInput.prototype.getLastLineFirstIndex = function() { return this.maxItems() - this.maxCols(); }
+Window_ECardGameBettingInput.prototype.cursorDown = function(wrap) {
+    if (this._index < this.getLastLineFirstIndex() || wrap) {
+        this._index = (this._index + this.maxCols()) % this.maxItems();
+    }
+};
+
+Window_ECardGameBettingInput.prototype.cursorUp = function(wrap) {
+    if (this._index >= this.getNextLineFirstIndex() || wrap) {
+        this._index = (this._index + this.getLastLineFirstIndex()) % this.maxItems();
+    }
+};
+
+Window_ECardGameBettingInput.prototype.cursorRight = function(wrap) {
+    if (this._index % this.maxCols() < (this.maxCols() - 1)) {
+        this._index++;
+    } else if (wrap) {
+        this._index -= (this.maxCols() - 1);
+    }
+};
+
+Window_ECardGameBettingInput.prototype.cursorLeft = function(wrap) {
+    if (this._index % this.maxCols() > 0) {
+        this._index--;
+    } else if (wrap) {
+        this._index += (this.maxCols() - 1);
+    }
+};
+
+Window_ECardGameBettingInput.prototype.processOk = function() {
+    if (this.isCursorNumber()) {
+        this.onInputAdd();
+    } else if (this.isCursorRemove()) {
+        this.onInputRemove();
+    } else if (this.isCursorOK()) {
+        this.onInputOk();
+    }
+};
+
+Window_ECardGameBettingInput.prototype.onInputAdd = function() {
+
+};
+
+Window_ECardGameBettingInput.prototype.onInputRemove = function() {
+
+};
+
+Window_ECardGameBettingInput.prototype.onInputOk = function() {
+    this.callOkHandler();
 };

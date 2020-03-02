@@ -1000,6 +1000,9 @@ ECardGameManager.arrText = [
     { key : "MainTitle", value : "E 카드 게임 본 화면"},
     { key : "MainMenuStart", value : "카드"},
     { key : "MainMenuExit", value : "뒤로"},
+    { key : "CardName_Slave", value : "노예"},
+    { key : "CardName_Citizen", value : "시민"},
+    { key : "CardName_Emperor", value : "황제"},
 ];
 ECardGameManager.GetText = function(_key)
 {
@@ -1010,6 +1013,29 @@ ECardGameManager.GetText = function(_key)
     return retVal.value;
 };
 
+ECardGameManager.GetCardText = function(cardType)
+{
+    var key = null;
+    switch (cardType)
+    {
+        case ECardGameManager.EnumCardType.SLAVE:
+            key = "CardName_Slave";
+            break;
+
+        case ECardGameManager.EnumCardType.CITIZEN:
+            key = "CardName_Citizen";
+            break;
+
+        case ECardGameManager.EnumCardType.EMPEROR:
+            key = "CardName_Emperor";
+            break;
+    }
+
+    if (key != null)
+        return ECardGameManager.GetText(key);
+    else
+        return "";
+};
 
 //-----------------------------------------------------------------------------
 // Scene_ECardGameStart
@@ -1142,13 +1168,18 @@ Scene_ECardGame.prototype.createUIGroup = function() {
     _pushUIGroup.call(this, "mainMenu", _mainSelectWindow);
 
     // Main Player Card Window
-    var _mainPlayerCardWindow = new Window_ECardGameMainPlayerCardSelect(0, 80, 500);
-    for (var i = 0; i < _mainPlayerCardWindow.maxCols(); ++i)
-        _mainPlayerCardWindow.setHandler('card' + i, this.onClickSelectPlayerCard.bind(this, i));
+    var _mainPlayerCardWindow = new Window_ECardGameMainCardSelect(0, Graphics.height - 120, this.getPlayerCardText, this.onClickSelectPlayerCard);
     _mainPlayerCardWindow.deselect();
     _mainPlayerCardWindow.deactivate();
     _mainPlayerCardWindow.hide();
     _pushUIGroup.call(this, "mainPlayerCard", _mainPlayerCardWindow);
+
+    // Main Dealer Card Window
+    var _mainDealerCardWindow = new Window_ECardGameMainCardSelect(0, 80, this.getDealerCardText);
+    _mainDealerCardWindow.deselect();
+    _mainDealerCardWindow.deactivate();
+    _mainDealerCardWindow.hide();
+    _pushUIGroup.call(this, "mainDealerCard", _mainDealerCardWindow);
 
     // Main Help Window
     var _mainHelpWindow = new Window_Help(1);
@@ -1167,6 +1198,20 @@ Scene_ECardGame.prototype.findUIInGroup = function(name) {
         return undefined;
 
     return retVal.window;
+};
+
+Scene_ECardGame.prototype.getPlayerCardText = function(index) {
+    if (index < 0 || index >= ECardGameManager.playerHands.length)
+        return "EMPTY";
+
+    return ECardGameManager.GetCardText(ECardGameManager.playerHands[index]);
+};
+
+Scene_ECardGame.prototype.getDealerCardText = function(index) {
+    if (index < 0 || index >= ECardGameManager.dealerHands.length)
+        return "EMPTY";
+
+    return ECardGameManager.GetCardText(ECardGameManager.dealerHands[index]);
 };
 
 Scene_ECardGame.prototype.update = function()
@@ -1188,6 +1233,16 @@ Scene_ECardGame.prototype.onUpdaterEvent = function(eventIDs)
     console.log("Scene_ECardGame.prototype.onUpdaterEvent : current step = " + ECardGameManager.step.TYPE);
 
     this.updateForStep();
+};
+
+Scene_ECardGame.prototype.hideAllUI = function()
+{
+//
+    for (var i = 0; i < this.arrUIGroup.length; ++i)
+    {
+        this.arrUIGroup[i].window.deactivate();
+        this.arrUIGroup[i].window.hide();
+    }
 };
 
 Scene_ECardGame.prototype.updateForStep = function()
@@ -1226,13 +1281,8 @@ Scene_ECardGame.prototype.updateForStep = function()
 Scene_ECardGame.prototype._update_for_step_BETTING = function()
 {
     //
-    for (var i = 0; i < this.arrUIGroup.length; ++i)
-    {
-        this.arrUIGroup[i].window.deactivate();
-        this.arrUIGroup[i].window.hide();
-    }
+    this.hideAllUI();
 
-    //
     var _mainHelp = this.findUIInGroup("mainHelp");
     _mainHelp.show();
     _mainHelp.setText("BETTING");
@@ -1248,7 +1298,21 @@ Scene_ECardGame.prototype._update_for_step_BETTING = function()
 
 Scene_ECardGame.prototype._update_for_step_SELECT_CARD = function()
 {
+    this.hideAllUI();
 
+    var _mainHelp = this.findUIInGroup("mainHelp");
+    _mainHelp.show();
+    _mainHelp.setText("SELECT_CARD");
+
+    var _DealerWindow = this.findUIInGroup("mainDealerCard");
+    _DealerWindow.show();
+    _DealerWindow.refresh();
+
+    var _PlayerWindow = this.findUIInGroup("mainPlayerCard");
+    _PlayerWindow.show();
+    _PlayerWindow.activate();
+    _PlayerWindow.select(0);
+    _PlayerWindow.refresh();
 };
 
 Scene_ECardGame.prototype._update_for_step_RESULT_TURN = function()
@@ -1291,6 +1355,9 @@ Scene_ECardGame.prototype.onClickBettingRemove = function() {
 
 Scene_ECardGame.prototype.onClickBettingOK = function() {
     console.log("Scene_ECardGame.prototype.onClickBettingOK");
+
+    var _inputWindow = this.findUIInGroup("bettingInput");
+    ECardGameManager.SetBettingAssetAmount(_inputWindow.GetInputValueNum());
 };
 
 Scene_ECardGame.prototype.onClickMainStart = function() {
@@ -1314,18 +1381,7 @@ Scene_ECardGame.prototype.onClickMainExit = function() {
 };
 
 Scene_ECardGame.prototype.onClickSelectPlayerCard = function(index) {
-    var _deactiveTarget = this.findUIInGroup("mainPlayerCard");
-    var _activeTarget = this.findUIInGroup("mainMenu");
-
-    if (_deactiveTarget === undefined || _activeTarget === undefined)
-        return;
-
     console.log("onClickSelectPlayerCard" + index);
-
-    _deactiveTarget.deselect();
-    _deactiveTarget.deactivate();
-
-    _activeTarget.activate();
 };
 
 //-----------------------------------------------------------------------------
@@ -1425,33 +1481,134 @@ Window_ECardGameMain.prototype.makeCommandList = function() {
 };
 
 //-----------------------------------------------------------------------------
-// Window_ECardGameMainPlayerCardSelect
+// Window_ECardGameMainCardSelect
 //
 // The window for selecting a category of items on the item and shop screens.
 
-function Window_ECardGameMainPlayerCardSelect() {
+function Window_ECardGameMainCardSelect() {
     this.initialize.apply(this, arguments);
 }
 
-Window_ECardGameMainPlayerCardSelect.prototype = Object.create(Window_HorzCommand.prototype);
-Window_ECardGameMainPlayerCardSelect.prototype.constructor = Window_ECardGameMainPlayerCardSelect;
+Window_ECardGameMainCardSelect.prototype = Object.create(Window_Selectable.prototype);
+Window_ECardGameMainCardSelect.prototype.constructor = Window_ECardGameMainCardSelect;
 
-Window_ECardGameMainPlayerCardSelect.prototype.initialize = function(x, y, width) {
-    this._windowWidth = width;
-    Window_HorzCommand.prototype.initialize.call(this, x, y);
+Window_ECardGameMainCardSelect.prototype.onClickSelect = null;
+Window_ECardGameMainCardSelect.prototype.funcGetText = null;
+Window_ECardGameMainCardSelect.prototype.initialize = function(x, y, funcGetText, callback) {
+    this._windowWidth   = this.fittingWidth(this.maxCols());
+    this._windowHeight  = this.fittingHeight(1);
+    this._index = 0;
+    this.funcGetText = funcGetText;
+    this.onClickSelect = callback;
+
+    Window_Selectable.prototype.initialize.call(this, x, y, this.windowWidth(), this.windowHeight());
+
+    this.refresh();
+    this.updateCursor();
 };
 
-Window_ECardGameMainPlayerCardSelect.prototype.numVisibleRows = function() {
+Window_ECardGameMainCardSelect.prototype.windowWidth = function() {
+    return this._windowWidth;
+};
+
+Window_ECardGameMainCardSelect.prototype.windowHeight = function() {
+    return this._windowHeight;
+};
+
+Window_ECardGameMainCardSelect.prototype.maxCols = function() {
+    return ECardGameManager.MaxHandCount;
+};
+
+Window_ECardGameMainCardSelect.prototype.maxItems = function() {
+    return ECardGameManager.MaxHandCount;
+};
+
+Window_ECardGameMainCardSelect.prototype.fittingWidth = function(cols)
+{
+    return cols * this.lineWidth() + (cols - 1) * this.lineColSpacing() + this.standardPadding() * 2;
+};
+
+Window_ECardGameMainCardSelect.prototype.lineWidth = function()
+{
+    return 80;
+};
+
+Window_ECardGameMainCardSelect.prototype.lineHeight = function()
+{
+    return 50;
+};
+
+Window_ECardGameMainCardSelect.prototype.lineColSpacing = function()
+{
     return 3;
 };
 
-Window_ECardGameMainPlayerCardSelect.prototype.maxCols = function() {
-    return 5;
+Window_ECardGameMainCardSelect.prototype.standardFontSize = function() {
+    return 24;
 };
 
-Window_ECardGameMainPlayerCardSelect.prototype.makeCommandList = function() {
-    for (var i = 0; i < this.maxCols(); ++i)
-        this.addCommand(i.toString(), 'card' + i);
+Window_ECardGameMainCardSelect.prototype.GetItemText = function(index) {
+    var retVal = "EMPTY";
+    if (this.funcGetText == null)
+        return retVal;
+
+    return this.funcGetText.call(this, index);
+};
+
+Window_ECardGameMainCardSelect.prototype.itemRect = function(index, isForCursor) {
+    return {
+        x: index % this.maxCols() * this.lineWidth() + (index % this.maxCols()) * this.lineColSpacing() + (isForCursor ? 0 : 3),
+        y: Math.floor(index / this.maxCols()) * this.lineHeight(),
+        width: this.lineWidth()  + (isForCursor ? 0 : -6),
+        height: this.lineHeight()
+    };
+};
+
+Window_ECardGameMainCardSelect.prototype.refresh = function() {
+    //var table = Window_ECardGameMainCardSelect.INPUT;
+    this.contents.clear();
+    this.resetTextColor();
+    for (var i = 0; i < this.maxItems(); i++) {
+        var rect = this.itemRect(i, false);
+        this.drawText(this.GetItemText(i), rect.x, rect.y, rect.width, 'center');
+    }
+};
+
+Window_ECardGameMainCardSelect.prototype.updateCursor = function() {
+    var rect = this.itemRect(this._index, true);
+    this.setCursorRect(rect.x, rect.y, rect.width, rect.height);
+};
+
+Window_ECardGameMainCardSelect.prototype.isCursorMovable = function() {
+    return this.active;
+};
+
+Window_ECardGameMainCardSelect.prototype.processCursorMove = function() {
+    Window_Selectable.prototype.processCursorMove.call(this);
+    this.updateCursor();
+};
+
+Window_ECardGameMainCardSelect.prototype.isOkEnabled = function() {
+    return true;
+};
+
+Window_ECardGameMainCardSelect.prototype.processOk = function() {
+    if (this.isCurrentItemEnabled()) {
+        this.playOkSound();
+        this.updateInputData();
+
+        //
+        if (this.onClickSelect != null)
+            this.onClickSelect.call(this, this._index);
+        //
+
+    } else {
+        this.playBuzzerSound();
+    }
+};
+
+Window_ECardGameMainCardSelect.prototype.isCurrentItemEnabled = function() {
+    return true;
 };
 
 //-----------------------------------------------------------------------------

@@ -827,6 +827,7 @@ ECardGameStep.prototype._next_RESULT_TURN_ = function()
 };
 
 // Step_RESULT_ROUND
+ECardGameStep.prototype._data_RESULT_ROUND_ = { waitTime : 0 };
 ECardGameStep.prototype._init_RESULT_ROUND_ = function()
 {
     // Set Round Result
@@ -852,10 +853,13 @@ ECardGameStep.prototype._init_RESULT_ROUND_ = function()
         default:
             break;
     }
+
+    this._data_RESULT_ROUND_ = { waitTime : 60 }; // 180 / 60frame = 3 sec
 };
 ECardGameStep.prototype._update_RESULT_ROUND_ = function()
 {
-    this.isConfirmToContinue = true;
+    this._data_RESULT_ROUND_.waitTime = this._data_RESULT_ROUND_.waitTime - 1;
+    this.isConfirmToContinue = (this._data_RESULT_ROUND_.waitTime < 0);
 };
 ECardGameStep.prototype._next_RESULT_ROUND_ = function()
 {
@@ -1003,6 +1007,9 @@ ECardGameManager.arrText = [
     { key : "CardName_Slave", value : "노예"},
     { key : "CardName_Citizen", value : "시민"},
     { key : "CardName_Emperor", value : "황제"},
+    { key : "Result_Win", value : "승리"},
+    { key : "Result_Draw", value : "무승부"},
+    { key : "Result_Lose", value : "패배"},
 ];
 ECardGameManager.GetText = function(_key)
 {
@@ -1187,6 +1194,18 @@ Scene_ECardGame.prototype.createUIGroup = function() {
     _mainHelpWindow.hide();
     _pushUIGroup.call(this, "mainHelp", _mainHelpWindow);
 
+    // Result Turn Window
+    var _resultTurnWindow = new Window_ECardGameText(Graphics.width / 2 - 250, Graphics.height / 2 - 100, 500, 1);
+    _resultTurnWindow.setText("");
+    _resultTurnWindow.hide();
+    _pushUIGroup.call(this, "resultTurn", _resultTurnWindow);
+
+    // Result Round Window
+    var _resultRoundWindow = new Window_ECardGameText(Graphics.width / 2 - 250, Graphics.height / 2 + 100, 500, 1);
+    _resultRoundWindow.setText("");
+    _resultRoundWindow.hide();
+    _pushUIGroup.call(this, "resultRound", _resultRoundWindow);
+
     // Add to WindowLayer
     for (var i = 0; i < this.arrUIGroup.length; ++i)
         this.addWindow(this.arrUIGroup[i].window);
@@ -1317,22 +1336,84 @@ Scene_ECardGame.prototype._update_for_step_SELECT_CARD = function()
 
 Scene_ECardGame.prototype._update_for_step_RESULT_TURN = function()
 {
+    this.hideAllUI();
 
+    var _mainHelp = this.findUIInGroup("mainHelp");
+    _mainHelp.show();
+    _mainHelp.setText("RESULT_TURN");
+
+    this.__update_for_step_result_turn_window();
 };
 
 Scene_ECardGame.prototype._update_for_step_RESULT_ROUND = function()
 {
+    this.hideAllUI();
 
+    var _mainHelp = this.findUIInGroup("mainHelp");
+    _mainHelp.show();
+    _mainHelp.setText("RESULT_ROUND");
+
+    this.__update_for_step_result_turn_window();
+    this.__update_for_step_result_round_window();
+};
+
+Scene_ECardGame.prototype.__update_for_step_result_turn_window = function()
+{
+    var _resultWindow = this.findUIInGroup("resultTurn");
+    _resultWindow.show();
+
+    var playerCard = ECardGameManager.GetCardText(ECardGameManager.playerSelectCard);
+    var dealerCard = ECardGameManager.GetCardText(ECardGameManager.dealerSelectCard);
+
+    var resultText = ECardGameManager.GetText("Result_Draw");
+    switch (ECardGameManager.turnBattleResult)
+    {
+        case ECardGameManager.EnumResultType.WIN:
+            resultText = "←(" + ECardGameManager.GetText("Result_Win") + ")" + "(" + ECardGameManager.GetText("Result_Lose") + ")→";
+            break;
+
+        case ECardGameManager.EnumResultType.LOSE:
+            resultText = "←(" + ECardGameManager.GetText("Result_Lose") + ")" + "(" + ECardGameManager.GetText("Result_Win") + ")→";
+            break;
+
+        case ECardGameManager.EnumResultType.DRAW:
+            resultText = "←(" + ECardGameManager.GetText("Result_Draw") + ")→";
+            break;
+    }
+    _resultWindow.setText("(유저)" + playerCard + resultText + dealerCard + "(딜러)");
+};
+
+Scene_ECardGame.prototype.__update_for_step_result_round_window = function()
+{
+    var _resultWindow = this.findUIInGroup("resultRound");
+    _resultWindow.show();
+
+    var resultText = ECardGameManager.GetText("Result_Draw");
+    switch (ECardGameManager.turnBattleResult)
+    {
+        case ECardGameManager.EnumResultType.WIN:
+            resultText = ECardGameManager.GetText("Result_Win");
+            break;
+
+        case ECardGameManager.EnumResultType.LOSE:
+            resultText = ECardGameManager.GetText("Result_Lose");
+            break;
+
+        case ECardGameManager.EnumResultType.DRAW:
+            resultText = ECardGameManager.GetText("Result_Draw");
+            break;
+    }
+    _resultWindow.setText(ECardGameManager.roundCount + "라운드 결과 : " + resultText);
 };
 
 Scene_ECardGame.prototype._update_for_step_SELECT_CONTINUE = function()
 {
-
+    this.hideAllUI();
 };
 
 Scene_ECardGame.prototype._update_for_step_default = function()
 {
-
+    this.hideAllUI();
 };
 
 Scene_ECardGame.prototype.onClickBettingAdd = function() {
@@ -1382,6 +1463,8 @@ Scene_ECardGame.prototype.onClickMainExit = function() {
 
 Scene_ECardGame.prototype.onClickSelectPlayerCard = function(index) {
     console.log("onClickSelectPlayerCard" + index);
+
+    ECardGameManager.SelectPlayerCard(index);
 };
 
 //-----------------------------------------------------------------------------
@@ -1445,7 +1528,7 @@ Window_ECardGameText.prototype.clear = function() {
 
 Window_ECardGameText.prototype.refresh = function() {
     this.contents.clear();
-    this.drawTextEx(this._text, this.textPadding(), 0);
+    this.drawText(this._text, 0, 0, this._width - this.standardPadding() * 2, 'center');
 };
 
 
@@ -1530,7 +1613,7 @@ Window_ECardGameMainCardSelect.prototype.fittingWidth = function(cols)
 
 Window_ECardGameMainCardSelect.prototype.lineWidth = function()
 {
-    return 80;
+    return 100;
 };
 
 Window_ECardGameMainCardSelect.prototype.lineHeight = function()
@@ -1821,3 +1904,4 @@ Window_ECardGameBettingInput.prototype.onInputRemove = function() {
 Window_ECardGameBettingInput.prototype.onInputOk = function() {
     this.callOkHandler();
 };
+

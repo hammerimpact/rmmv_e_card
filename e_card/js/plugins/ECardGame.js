@@ -1070,6 +1070,7 @@ Scene_ECardGameStart.prototype.createStartUIGroup = function() {
 };
 
 Scene_ECardGameStart.prototype.onClickStartWindowStart = function() {
+    ECardGameManager.SetStart();
     SceneManager.push(Scene_ECardGame);
 };
 
@@ -1096,6 +1097,7 @@ Scene_ECardGame.prototype.initialize = function() {
 Scene_ECardGame.prototype.create = function() {
     Scene_MenuBase.prototype.create.call(this);
     this.createUIGroup();
+    this.updateForStep();
 };
 
 Scene_ECardGame.prototype.start = function() {
@@ -1119,11 +1121,15 @@ Scene_ECardGame.prototype.createUIGroup = function() {
     _bettingInputWindow.setHandler('ok', this.onClickBettingOK.bind(this));
     _bettingInputWindow.setHandler('add', this.onClickBettingAdd.bind(this));
     _bettingInputWindow.setHandler('remove', this.onClickBettingRemove.bind(this));
+    _bettingInputWindow.deselect();
+    _bettingInputWindow.deactivate();
+    _bettingInputWindow.hide();
     _pushUIGroup.call(this, "bettingInput", _bettingInputWindow);
 
     // Betting Window
     var _bettingAmountWindow = new Window_ECardGameText(Graphics.width / 2 - 130, 80, 260, 1);
     _bettingAmountWindow.setText(_bettingInputWindow.GetInputValueNum().toString());
+    _bettingAmountWindow.hide();
     _pushUIGroup.call(this, "bettingAmount", _bettingAmountWindow);
 
     // Main Select Window
@@ -1147,6 +1153,7 @@ Scene_ECardGame.prototype.createUIGroup = function() {
     // Main Help Window
     var _mainHelpWindow = new Window_Help(1);
     _mainHelpWindow.setText(ECardGameManager.GetText("MainTitle"));
+    _mainHelpWindow.hide();
     _pushUIGroup.call(this, "mainHelp", _mainHelpWindow);
 
     // Add to WindowLayer
@@ -1179,6 +1186,89 @@ Scene_ECardGame.prototype.terminate = function()
 Scene_ECardGame.prototype.onUpdaterEvent = function(eventIDs)
 {
     console.log("Scene_ECardGame.prototype.onUpdaterEvent : current step = " + ECardGameManager.step.TYPE);
+
+    this.updateForStep();
+};
+
+Scene_ECardGame.prototype.updateForStep = function()
+{
+    if (ECardGameManager.step === undefined || ECardGameManager.step == null)
+        return;
+
+    switch (ECardGameManager.step.TYPE)
+    {
+        case ECardGameManager.EnumStepType.BETTING:
+            this._update_for_step_BETTING();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_CARD:
+            this._update_for_step_SELECT_CARD();
+            break;
+
+        case ECardGameManager.EnumStepType.RESULT_TURN:
+            this._update_for_step_RESULT_TURN();
+            break;
+
+        case ECardGameManager.EnumStepType.RESULT_ROUND:
+            this._update_for_step_RESULT_ROUND();
+            break;
+
+        case ECardGameManager.EnumStepType.SELECT_CONTINUE:
+            this._update_for_step_SELECT_CONTINUE();
+            break;
+
+        default:
+            this._update_for_step_default();
+            break;
+    }
+};
+
+Scene_ECardGame.prototype._update_for_step_BETTING = function()
+{
+    //
+    for (var i = 0; i < this.arrUIGroup.length; ++i)
+    {
+        this.arrUIGroup[i].window.deactivate();
+        this.arrUIGroup[i].window.hide();
+    }
+
+    //
+    var _mainHelp = this.findUIInGroup("mainHelp");
+    _mainHelp.show();
+    _mainHelp.setText("BETTING");
+
+    var _showWindow = this.findUIInGroup("bettingAmount");
+    _showWindow.show();
+
+    var _inputWindow = this.findUIInGroup("bettingInput");
+    _inputWindow.show();
+    _inputWindow.activate();
+    _inputWindow.select(0);
+};
+
+Scene_ECardGame.prototype._update_for_step_SELECT_CARD = function()
+{
+
+};
+
+Scene_ECardGame.prototype._update_for_step_RESULT_TURN = function()
+{
+
+};
+
+Scene_ECardGame.prototype._update_for_step_RESULT_ROUND = function()
+{
+
+};
+
+Scene_ECardGame.prototype._update_for_step_SELECT_CONTINUE = function()
+{
+
+};
+
+Scene_ECardGame.prototype._update_for_step_default = function()
+{
+
 };
 
 Scene_ECardGame.prototype.onClickBettingAdd = function() {
